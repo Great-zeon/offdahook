@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="favGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#121016"/>
+      <stop offset="100%" stop-color="#241B2E"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#favGrad)"/>
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="none" stroke="#D81B60" stroke-width="2" stroke-opacity="0.8"/>
+  <text x="32" y="40" font-family="'Plus Jakarta Sans', -apple-system, sans-serif" font-size="22" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">ODH</text>
+  <circle cx="32" cy="50" r="2.5" fill="#D81B60"/>
+</svg>

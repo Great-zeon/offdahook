@@ -1,0 +1,190 @@
+[
+  {
+    "id": "loc-buffet-bundle-package",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/loc-buffet-bundle-package",
+    "title": "Loc Buffet Bundle Package",
+    "price": "$99.99",
+    "category": "locs bundles",
+    "volume": "5-Piece Ritual Set + Satin Bonnet",
+    "description": "This signature package was formulated to keep your Locs in pristine condition with the ultimate hydrating, moisturizing, strengthening, and growing botanicals. Infused with uplifting natural aromatic scents, this system leaves your locs buttery smooth, itch-free, and growing stronger.\n\nIncludes: Citrus Quench Shampoo (8oz), Citrus Quench Conditioner (8oz), Aloe Rose Spritzer (8oz continuous fine mist), Loc Butta Sauce (8oz), Xxxtra Strength Regrowth Serum (8oz), PLUS a Luxury Satin Hair Bonnet.",
+    "infoSections": [],
+    "mainImage": "assets/shop/loc-buffet-bundle-package-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_a9cc437237b24434903174b5ba620b20~mv2.jpg/v1/fill/w_498,h_373,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_a9cc437237b24434903174b5ba620b20~mv2.jpg",
+    "includesBonnet": true,
+    "allImages": [
+      "assets/shop/loc-buffet-bundle-package-enhanced.jpg",
+      "assets/shop/aloe-rose-water-spritzer-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "xxxtra-strength-regrowth-serum",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/xxxtra-strength-regrowth-serum",
+    "title": "Xxxtra Strength Regrowth Serum",
+    "price": "$25.00",
+    "category": "regrowth",
+    "volume": "Available in 4 oz & 8 oz",
+    "sizes": [
+      { "name": "Small (4 oz)", "price": "$25.00" },
+      { "name": "Large (8 oz)", "price": "$40.00" }
+    ],
+    "description": "Available in two sizes: Small 4 oz ($25.00) and Large 8 oz ($40.00). High-potency botanical infusion engineered to awaken dormant follicles along thinning edges, temples, and crown areas. Infused with all-natural essential oils, Ayurvedic herbs, and cold-pressed fruit oils. Formulated for clients who suffered moderate to severe hair loss or postpartum shedding. Most clients see visible new growth in 4–6 weeks.",
+    "infoSections": [],
+    "mainImage": "assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_04fd919ceef7417e9fde3ea68359fbc5~mv2.jpg/v1/fill/w_498,h_665,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_04fd919ceef7417e9fde3ea68359fbc5~mv2.jpg",
+    "allImages": [
+      "assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "anti-itch-dandruff-growth-serum",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/anti-itch-dandruff-growth-serum",
+    "title": "Anti Itch Dandruff Growth Serum",
+    "price": "$20.00",
+    "category": "regrowth locs",
+    "volume": "4 oz / 120 ml Dropper",
+    "description": "This serum is infused with all-natural therapeutic botanicals to soothe dry, itchy, dandruff-ridden scalps. Targets severe dandruff, psoriasis, eczema, seborrheic dermatitis, cradle cap, and severe flaking. Detoxifies follicle pore buildup, diminishes flakes, nourishes, moisturizes, and heals. Perfect for all hair types including locs, braids, natural curls, relaxed hair, and wear under wigs.",
+    "infoSections": [],
+    "mainImage": "assets/shop/anti-itch-dandruff-growth-serum-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_c66c3ff8c4fb47299d25efdd9f54987d~mv2.jpg/v1/fill/w_498,h_665,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_c66c3ff8c4fb47299d25efdd9f54987d~mv2.jpg",
+    "allImages": [
+      "assets/shop/anti-itch-dandruff-growth-serum-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "control-freak-edge-polish",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/control-freak-edge-polish",
+    "title": "ICY Edge Glaze",
+    "price": "$20.00",
+    "category": "braids",
+    "volume": "4 oz Tub • Clear & Black",
+    "colors": ["Clear", "Black"],
+    "description": "Available in Crystal Clear and Tinted Black ($20.00). Delivers 24-hour maximum hold with high mirror shine and zero white flaking. Tames and lays coarse 4C edges with a glass-like finish that resists summer humidity and sweat without melting or crusting. 100% vegan friendly and alcohol-free.",
+    "infoSections": [],
+    "mainImage": "assets/shop/control-freak-edge-polish-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/065ad3_ee6cc96b2b03423abec590e2633f0c74~mv2.png/v1/fill/w_498,h_498,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/065ad3_ee6cc96b2b03423abec590e2633f0c74~mv2.png",
+    "allImages": [
+      "assets/shop/control-freak-edge-polish-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "grip-and-glide-braid-jam",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/grip-and-glide-braid-jam",
+    "title": "Grip and Glide Braid Jam",
+    "price": "$15.00",
+    "category": "braids",
+    "volume": "8 oz / 240 ml Jar",
+    "description": "This stylist-grade Braid Jam moisturizes and conditions while eliminating frizziness and stubborn hard-to-mold flyaways. Delivers razor-sharp parting without stickiness, never turns white or flaky under hooded dryers, and keeps edges laid. Perfect for Loc Retwists, Knotless Braids, Stitch Braids, and Sleek Ponytails.",
+    "infoSections": [],
+    "mainImage": "assets/shop/grip-and-glide-braid-jam-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_2e53c828f5144ee28612168332185b0e~mv2.jpg/v1/fill/w_498,h_498,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_2e53c828f5144ee28612168332185b0e~mv2.jpg",
+    "allImages": [
+      "assets/shop/grip-and-glide-braid-jam-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "aloe-rose-water-spritzer",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/aloe-rose-water-spritzer",
+    "title": "Aloe Rose Water Spritzer",
+    "price": "$25.00",
+    "category": "regrowth locs braids",
+    "volume": "10 oz Flairosol Continuous Mist",
+    "description": "This 10 oz continuous ultra-fine mist spray bottle delivers soothing organic Aloe Vera juice and pure steam-distilled Rose Water directly to roots and curls. Perfect for daily loc and braid hydration, refreshing protective styles, balancing scalp pH, and eliminating gym sweat odors without heaviness or buildup.",
+    "infoSections": [],
+    "mainImage": "assets/shop/aloe-rose-water-spritzer-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_0799907316ae4b9ba0c115670d729f51~mv2.jpg/v1/fill/w_498,h_1054,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_0799907316ae4b9ba0c115670d729f51~mv2.jpg",
+    "allImages": [
+      "assets/shop/aloe-rose-water-spritzer-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "loc-butta-sauce",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/loc-butta-sauce",
+    "title": "Loc Butta Sauce",
+    "price": "$25.00",
+    "category": "locs",
+    "volume": "8 oz / 240 ml Cosmetic Jar",
+    "description": "Concentrated nutrient formula infused with raw organic African Shea, cold-pressed Mango butter, Vitamin E, and bio-iron. Glides through locs and natural curls to treat dryness, soothe itch, retain moisture, and provide buttery soft hold with zero white build-up. Excellent for loc retwists, twist-outs, and coarse textured hair.",
+    "infoSections": [],
+    "mainImage": "assets/shop/loc-butta-sauce-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/065ad3_37a699064d5545f6bde320558bfe13c9~mv2.jpg/v1/fill/w_498,h_665,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/065ad3_37a699064d5545f6bde320558bfe13c9~mv2.jpg",
+    "allImages": [
+      "assets/shop/loc-butta-sauce-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "citrus-quench-clarifying-shampoo",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/shop-all",
+    "title": "Citrus Quench Clarifying Shampoo",
+    "price": "$25.00",
+    "category": "regrowth wash",
+    "volume": "8 oz / 240 ml Bottle",
+    "description": "Sulfate-free, moisture-rich clarifying shampoo infused with pure citrus extracts, tea tree, and organic aloe vera. Gently dissolves follicle buildup, flakes, and sweat without stripping natural moisture from locs, natural curls, or weaves. Prepares hair for deep hydration treatments.",
+    "infoSections": [],
+    "mainImage": "assets/shop/loc-buffet-bundle-package-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_a9cc437237b24434903174b5ba620b20~mv2.jpg",
+    "allImages": [
+      "assets/shop/loc-buffet-bundle-package-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "citrus-quench-hydrating-conditioner",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/shop-all",
+    "title": "Citrus Quench Hydrating Conditioner",
+    "price": "$25.00",
+    "category": "regrowth wash",
+    "volume": "8 oz / 240 ml Bottle",
+    "description": "Deep-penetrating botanical conditioner enriched with mango butter, vitamin E, and silk amino acids. Restores elasticity, seals cuticle hydration, and leaves locs and curls silky soft with uplifting citrus aromatics.",
+    "infoSections": [],
+    "mainImage": "assets/shop/loc-buffet-bundle-package-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_a9cc437237b24434903174b5ba620b20~mv2.jpg",
+    "allImages": [
+      "assets/shop/loc-buffet-bundle-package-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "off-da-hook-oil-drip-comb",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/off-da-hook-oil-drip-comb",
+    "title": "Off Da Hook Oil Drip Comb",
+    "price": "$19.99",
+    "category": "regrowth locs",
+    "volume": "Calibrated Precision Applicator",
+    "description": "This precision applicator comb is excellent for use with our Xxxtra Strength Regrowth Serum, Strawberry Gelato oil, and Anti-Itch Growth Oil. Dispenses nourishing oils directly to scalp roots through calibrated hollow comb teeth. Ideal for hot oil treatments, itchy scalp, color applications, and everyday moisturizing.",
+    "infoSections": [],
+    "mainImage": "assets/shop/off-da-hook-oil-drip-comb-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_3cdb655b31f54a43aabe9a11fc421c25~mv2.jpg/v1/fill/w_498,h_822,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_3cdb655b31f54a43aabe9a11fc421c25~mv2.jpg",
+    "allImages": [
+      "assets/shop/off-da-hook-oil-drip-comb-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "the-children-s-line",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/the-children-s-line",
+    "title": "Perfect Paige's Unicorn Magic Hair System",
+    "price": "$49.99",
+    "category": "kids bundles",
+    "volume": "Complete 4-Piece Pediatric Set",
+    "description": "Purchase while supplies last! Normally priced at $75.\n\nThis gentle yet deeply nourishing hair growth system was created specifically for children's tender scalps and delicate curls. Has a fresh fruity scent and is packed with over 12 botanical vitamins and herbal supplements to stimulate growth, detangle painlessly, and leave curls bouncy and soft. Set includes: Gentle Cleanse Shampoo, Hydrating Conditioner, Soft Curl Custard, and calibrated Oil Drip Comb.",
+    "infoSections": [],
+    "mainImage": "assets/shop/the-children-s-line-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_c54f715ac0ea4cd4a2640dfcc9ab1208~mv2.jpg/v1/fill/w_498,h_373,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_c54f715ac0ea4cd4a2640dfcc9ab1208~mv2.jpg",
+    "allImages": [
+      "assets/shop/the-children-s-line-enhanced.jpg"
+    ]
+  },
+  {
+    "id": "fully-loaded-regrowth-system",
+    "url": "https://offdahookhairsalon.wixsite.com/my-site/product-page/fully-loaded-regrowth-system",
+    "title": "Fully Loaded Regrowth System",
+    "price": "$100.00",
+    "category": "regrowth bundles",
+    "volume": "Complete 5-Piece System + Satin Bonnet",
+    "description": "The complete clinical hair recovery protocol crafted by Shawnese Parker. Enriched with botanical actives to reverse thinning, traction alopecia, hormonal shedding, and chronic breakage. Includes: Regrowth Shampoo, Regrowth Deep Conditioner, Xxxtra Strength Regrowth Serum, scalp stimulating Oil Drip Comb, PLUS a Luxury Satin Hair Bonnet.",
+    "infoSections": [],
+    "mainImage": "assets/shop/fully-loaded-regrowth-system-enhanced.jpg",
+    "originalImageUrl": "https://static.wixstatic.com/media/6d5239_db685ff9eae449218e1b29100e4a9d35~mv2.jpg/v1/fill/w_498,h_373,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/6d5239_db685ff9eae449218e1b29100e4a9d35~mv2.jpg",
+    "includesBonnet": true,
+    "allImages": [
+      "assets/shop/fully-loaded-regrowth-system-enhanced.jpg"
+    ]
+  }
+]

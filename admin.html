@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Portal | Off Da Hook Salon Suites</title>
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+
+  <!-- Optimized Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    :root {
+      --admin-bg: #0B0A0F;
+      --admin-card-bg: #13111A;
+      --admin-border: rgba(255, 255, 255, 0.08);
+      --admin-pink: #D81B60;
+      --admin-pink-light: #FFA5D2;
+      --admin-emerald: #10B981;
+      --admin-amber: #F59E0B;
+      --admin-rose: #EF4444;
+    }
+
+    body.admin-body {
+      background: var(--admin-bg);
+      color: #FFFFFF;
+      font-family: var(--font-sans, 'Plus Jakarta Sans', sans-serif);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Bar */
+    .admin-navbar {
+      background: #110F17;
+      border-bottom: 1px solid var(--admin-border);
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .admin-nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .admin-nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #FFFFFF;
+    }
+
+    .admin-nav-logo img {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+
+    .admin-portal-tag {
+      background: rgba(216, 27, 96, 0.15);
+      border: 1px solid rgba(216, 27, 96, 0.35);
+      color: var(--admin-pink-light);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .admin-nav-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .admin-btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #E2DFED;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .admin-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #FFFFFF;
+    }
+
+    .admin-btn-primary {
+      background: var(--admin-pink);
+      border: 1px solid var(--admin-pink);
+      color: #FFFFFF;
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 7px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .admin-btn-primary:hover {
+      background: #C2185B;
+      transform: translateY(-1px);
+    }
+
+    /* Main Container */
+    .admin-container {
+      max-width: 1320px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 24px 60px;
+      flex: 1;
+    }
+
+    /* Metric Cards Grid */
+    .admin-metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .admin-metric-card {
+      background: var(--admin-card-bg);
+      border: 1px solid var(--admin-border);
+      border-radius: 8px;
+      padding: 20px 22px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .admin-metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .admin-metric-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #A39EB2;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .admin-metric-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--admin-pink-light);
+    }
+
+    .admin-metric-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: #FFFFFF;
+      line-height: 1.1;
+    }
+
+    .admin-metric-sub {
+      font-size: 12px;
+      color: #8E8A9F;
+      margin-top: 6px;
+    }
+
+    /* Tabs Bar */
+    .admin-tabs-bar {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--admin-border);
+      margin-bottom: 24px;
+    }
+
+    .admin-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #9C97AA;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px 18px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .admin-tab-btn:hover {
+      color: #FFFFFF;
+    }
+
+    .admin-tab-btn.active {
+      color: #FFFFFF;
+      border-bottom-color: var(--admin-pink);
+    }
+
+    /* Actions Bar */
+    .admin-action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .admin-search-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--admin-card-bg);
+      border: 1px solid var(--admin-border);
+      border-radius: 6px;
+      padding: 8px 14px;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .admin-search-box input {
+      background: transparent;
+      border: none;
+      color: #FFFFFF;
+      font-size: 13.5px;
+      width: 100%;
+      outline: none;
+    }
+
+    .admin-search-box input::placeholder {
+      color: #7E7991;
+    }
+
+    /* Product & Order Tables */
+    .admin-table-card {
+      background: var(--admin-card-bg);
+      border: 1px solid var(--admin-border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .admin-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table.admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13.5px;
+    }
+
+    table.admin-table th {
+      background: #100E17;
+      color: #9C97AA;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--admin-border);
+      white-space: nowrap;
+    }
+
+    table.admin-table td {
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #FFFFFF;
+      vertical-align: middle;
+    }
+
+    table.admin-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .admin-prod-cell {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 220px;
+    }
+
+    .admin-prod-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #1A1725;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      flex-shrink: 0;
+    }
+
+    .admin-prod-title {
+      font-weight: 700;
+      color: #FFFFFF;
+      line-height: 1.3;
+    }
+
+    .admin-prod-category {
+      font-size: 11px;
+      color: #8E8A9F;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Stock Inline Editor */
+    .admin-stock-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .admin-stock-input {
+      width: 58px;
+      background: #191624;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+      font-size: 13.5px;
+      font-weight: 700;
+      text-align: center;
+      padding: 5px 6px;
+      border-radius: 6px;
+    }
+
+    .admin-stock-stepper {
+      width: 24px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .admin-stock-stepper:hover {
+      background: var(--admin-pink);
+      border-color: var(--admin-pink);
+    }
+
+    /* Status Badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-badge.in-stock {
+      background: rgba(16, 185, 129, 0.12);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-badge.low-stock {
+      background: rgba(245, 158, 11, 0.12);
+      color: #FBBF24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .status-badge.sold-out {
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .status-badge.shipped {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-badge.pending {
+      background: rgba(245, 158, 11, 0.15);
+      color: #FBBF24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    /* Login Overlay Card */
+    .admin-login-wrap {
+      min-height: 80vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .admin-login-card {
+      background: var(--admin-card-bg);
+      border: 1px solid var(--admin-border);
+      border-radius: 8px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .admin-login-card h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 16px 0 6px;
+    }
+
+    .admin-login-card p {
+      font-size: 13.5px;
+      color: #9C97AA;
+      margin-bottom: 24px;
+    }
+
+    .admin-input-group {
+      text-align: left;
+      margin-bottom: 18px;
+    }
+
+    .admin-input-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: #C2BFD0;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .admin-input-control {
+      width: 100%;
+      background: #191624;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      color: #FFFFFF;
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+
+    .admin-input-control:focus {
+      border-color: var(--admin-pink);
+    }
+
+    /* Modal Architecture */
+    .admin-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.25s ease;
+    }
+
+    .admin-modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .admin-modal-card {
+      background: #14121B;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 540px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 28px;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    }
+
+    .admin-modal-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .admin-modal-close {
+      background: transparent;
+      border: none;
+      color: #8E8A9F;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .admin-modal-close:hover {
+      color: #FFFFFF;
+    }
+
+    /* Notification Banner */
+    .admin-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1D182A;
+      border: 1px solid var(--admin-pink);
+      color: #FFFFFF;
+      padding: 12px 20px;
+      border-radius: 6px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      font-size: 13.5px;
+      font-weight: 600;
+      z-index: 2000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+
+    .admin-toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body class="admin-body">
+
+  <!-- Admin Top Navigation -->
+  <nav class="admin-navbar">
+    <div class="admin-nav-left">
+      <a href="index.html" class="admin-nav-logo">
+        <img src="assets/offdahooklogo2.avif" alt="Off Da Hook Logo" onerror="this.src='assets/logo-emblem.jpg'">
+        <div>
+          <strong style="font-size: 14px; letter-spacing: 0.04em;">OFF DA HOOK</strong>
+          <span class="admin-portal-tag">Store Console</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="admin-nav-right">
+      <a href="shop.html" target="_blank" class="admin-btn-secondary" title="View Customer Storefront">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+        Live Storefront
+      </a>
+      <button type="button" class="admin-btn-secondary" id="adminLogoutBtn" style="display: none;">
+        Logout
+      </button>
+    </div>
+  </nav>
+
+  <!-- Login Gate Screen -->
+  <div class="admin-login-wrap" id="adminLoginScreen">
+    <div class="admin-login-card">
+      <div style="width: 50px; height: 50px; border-radius: 10px; background: rgba(216, 27, 96, 0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto; color: var(--admin-pink);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+      </div>
+      <h2>Off Da Hook Admin</h2>
+      <p>Enter your store access PIN to manage product inventory, adjust stock, and review customer orders.</p>
+
+      <form id="adminLoginForm">
+        <div class="admin-input-group">
+          <label for="adminPinInput">Manager PIN</label>
+          <input type="password" id="adminPinInput" class="admin-input-control" placeholder="Enter PIN (Default: offdahook2026)" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="admin-btn-primary" style="width: 100%; justify-content: center; padding: 11px;">
+          Unlock Store Dashboard
+        </button>
+        <div id="loginErrorMsg" style="color: var(--admin-rose); font-size: 12.5px; font-weight: 600; margin-top: 10px; display: none;">
+          Incorrect PIN. Please try again.
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Authenticated Main Dashboard -->
+  <main class="admin-container" id="adminMainContent" style="display: none;">
+
+    <!-- Metrics Row -->
+    <div class="admin-metrics-row">
+      <div class="admin-metric-card">
+        <div class="admin-metric-header">
+          <span class="admin-metric-label">Total Products</span>
+          <div class="admin-metric-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+          </div>
+        </div>
+        <div class="admin-metric-val" id="metricTotalProducts">12</div>
+        <div class="admin-metric-sub">Active in online shop catalog</div>
+      </div>
+
+      <div class="admin-metric-card">
+        <div class="admin-metric-header">
+          <span class="admin-metric-label">Stock Units</span>
+          <div class="admin-metric-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+          </div>
+        </div>
+        <div class="admin-metric-val" id="metricTotalStock">184</div>
+        <div class="admin-metric-sub">Total physical units ready to ship</div>
+      </div>
+
+      <div class="admin-metric-card">
+        <div class="admin-metric-header">
+          <span class="admin-metric-label">Low Stock Alerts</span>
+          <div class="admin-metric-icon" style="color: var(--admin-amber);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </div>
+        </div>
+        <div class="admin-metric-val" id="metricLowStock" style="color: var(--admin-amber);">0</div>
+        <div class="admin-metric-sub">Products with 3 or fewer units</div>
+      </div>
+
+      <div class="admin-metric-card">
+        <div class="admin-metric-header">
+          <span class="admin-metric-label">Client Orders</span>
+          <div class="admin-metric-icon" style="color: var(--admin-emerald);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+        </div>
+        <div class="admin-metric-val" id="metricTotalOrders" style="color: var(--admin-emerald);">0</div>
+        <div class="admin-metric-sub">Total orders placed on storefront</div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="admin-tabs-bar">
+      <button type="button" class="admin-tab-btn active" data-tab="inventoryTab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+        Inventory &amp; Stock
+      </button>
+      <button type="button" class="admin-tab-btn" data-tab="ordersTab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+        Client Orders &amp; Receipts
+      </button>
+      <button type="button" class="admin-tab-btn" data-tab="settingsTab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        Store &amp; Payment Settings
+      </button>
+    </div>
+
+    <!-- TAB 1: INVENTORY & STOCK -->
+    <section id="inventoryTab" class="admin-tab-content">
+      <div class="admin-action-bar">
+        <div class="admin-search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7E7991" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="productSearchInput" placeholder="Filter by formula name or category...">
+        </div>
+
+        <button type="button" class="admin-btn-primary" id="openAddProductBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Add New Product
+        </button>
+      </div>
+
+      <div class="admin-table-card">
+        <div class="admin-table-wrap">
+          <table class="admin-table" id="productsTable">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Price</th>
+                <th>Units in Stock</th>
+                <th>Status</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="productsTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: ORDERS & RECEIPTS -->
+    <section id="ordersTab" class="admin-tab-content" style="display: none;">
+      <div class="admin-action-bar">
+        <div style="font-size: 13.5px; color: #A39EB2;">
+          Customer orders processed via Stripe and PayPal. Order receipts are automatically sent to the customer's email upon payment.
+        </div>
+      </div>
+
+      <div class="admin-table-card">
+        <div class="admin-table-wrap">
+          <table class="admin-table" id="ordersTable">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Date &amp; Time</th>
+                <th>Customer</th>
+                <th>Items Ordered</th>
+                <th>Total Paid</th>
+                <th>Fulfillment</th>
+                <th style="text-align: right;">Receipt</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SETTINGS -->
+    <section id="settingsTab" class="admin-tab-content" style="display: none;">
+      <div style="max-width: 680px; display: flex; flex-direction: column; gap: 24px;">
+
+        <div class="admin-metric-card">
+          <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 8px;">Stripe &amp; PayPal Payments</h3>
+          <p style="font-size: 13px; color: #A39EB2; line-height: 1.6; margin-bottom: 16px;">
+            Your store is configured to accept Visa, Mastercard, Amex, Apple Pay, Google Pay, and PayPal through Stripe Checkout. Order receipts are dispatched automatically to client inboxes upon payment.
+          </p>
+          <div class="admin-input-group">
+            <label>Stripe Publishable Key (Client)</label>
+            <input type="text" id="settingStripePub" class="admin-input-control" placeholder="pk_live_... or pk_test_..." value="">
+          </div>
+          <div class="admin-input-group">
+            <label>Stripe Secret Key (Serverless / Vercel Environment)</label>
+            <input type="password" id="settingStripeSec" class="admin-input-control" placeholder="sk_live_... or sk_test_..." value="">
+          </div>
+          <button type="button" class="admin-btn-primary" id="saveApiKeysBtn">Save API Credentials</button>
+        </div>
+
+        <div class="admin-metric-card">
+          <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 8px;">Manager Console Security</h3>
+          <p style="font-size: 13px; color: #A39EB2; margin-bottom: 16px;">
+            Update the PIN required to access this dashboard.
+          </p>
+          <div class="admin-input-group">
+            <label>Current or New PIN</label>
+            <input type="password" id="settingNewPin" class="admin-input-control" placeholder="Enter new PIN" value="offdahook2026">
+          </div>
+          <button type="button" class="admin-btn-secondary" id="savePinBtn">Update Access PIN</button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ADD / EDIT PRODUCT MODAL -->
+  <div class="admin-modal-overlay" id="productModalOverlay">
+    <div class="admin-modal-card">
+      <div class="admin-modal-title">
+        <span id="productModalHeading">Add New Product</span>
+        <button type="button" class="admin-modal-close" id="closeProductModalBtn">&times;</button>
+      </div>
+
+      <form id="productForm">
+        <input type="hidden" id="formProductId">
+        
+        <div class="admin-input-group">
+          <label for="formTitle">Product Title *</label>
+          <input type="text" id="formTitle" class="admin-input-control" required placeholder="e.g. Lavender Scalp Revival Oil">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="admin-input-group">
+            <label for="formPrice">Price ($ USD) *</label>
+            <input type="text" id="formPrice" class="admin-input-control" required placeholder="e.g. 25.00">
+          </div>
+          <div class="admin-input-group">
+            <label for="formStock">Units in Stock *</label>
+            <input type="number" id="formStock" class="admin-input-control" required min="0" value="10">
+          </div>
+        </div>
+
+        <div class="admin-input-group">
+          <label for="formCategory">Category</label>
+          <input type="text" id="formCategory" class="admin-input-control" placeholder="e.g. regrowth, locs, bundles, cleansers">
+        </div>
+
+        <div class="admin-input-group">
+          <label for="formImage">Image Path or URL</label>
+          <input type="text" id="formImage" class="admin-input-control" placeholder="assets/shop/... or image URL">
+        </div>
+
+        <div class="admin-input-group">
+          <label for="formDesc">Product Description</label>
+          <textarea id="formDesc" class="admin-input-control" rows="3" placeholder="Key ingredients, benefits, directions..."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button type="button" class="admin-btn-secondary" id="cancelProductBtn">Cancel</button>
+          <button type="submit" class="admin-btn-primary">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ORDER RECEIPT MODAL -->
+  <div class="admin-modal-overlay" id="receiptModalOverlay">
+    <div class="admin-modal-card" style="max-width: 600px;">
+      <div class="admin-modal-title">
+        <span>Order Receipt</span>
+        <button type="button" class="admin-modal-close" id="closeReceiptModalBtn">&times;</button>
+      </div>
+
+      <div id="receiptContent" style="font-size: 13.5px; color: #FFFFFF; line-height: 1.6;">
+        <!-- Dynamically populated receipt -->
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+        <button type="button" class="admin-btn-secondary" onclick="window.print()">Print Receipt</button>
+        <button type="button" class="admin-btn-primary" id="doneReceiptBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="admin-toast" id="adminToast">Updated successfully</div>
+
+  <!-- Admin Dashboard JavaScript -->
+  <script>
+    (function () {
+      const STORAGE_KEY_PRODUCTS = 'odh_inventory_v1';
+      const STORAGE_KEY_ORDERS = 'odh_orders_v1';
+      const STORAGE_KEY_AUTH = 'odh_admin_auth';
+      const STORAGE_KEY_PIN = 'odh_admin_pin';
+      const DEFAULT_PIN = 'offdahook2026';
+
+      // Default seed catalog of Off Da Hook's 12 products
+      const SEED_PRODUCTS = [
+        {
+          id: 'loc-buffet-bundle-package',
+          title: 'Loc Buffet Bundle Package',
+          price: '$99.99',
+          numericPrice: 99.99,
+          stock: 12,
+          category: 'locs bundles',
+          volume: '5-Piece Ritual Set + Satin Bonnet',
+          image: 'assets/shop/loc-buffet-bundle-package-enhanced.jpg',
+          description: 'The complete maintenance suite: Citrus Quench Shampoo, Conditioner, Aloe Rose Spritzer, Loc Butta Sauce, Xxxtra Regrowth Serum, and Satin Bonnet.'
+        },
+        {
+          id: 'xxxtra-strength-regrowth-serum',
+          title: 'Xxxtra Strength Regrowth Serum',
+          price: '$25.00',
+          numericPrice: 25.00,
+          stock: 24,
+          category: 'regrowth',
+          volume: '4 oz Dropper',
+          image: 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg',
+          description: 'High-potency botanical infusion engineered to awaken dormant follicles along thinning edges, temples, and crown areas.'
+        },
+        {
+          id: 'anti-itch-dandruff-growth-serum',
+          title: 'Anti Itch Dandruff Growth Serum',
+          price: '$20.00',
+          numericPrice: 20.00,
+          stock: 18,
+          category: 'regrowth locs',
+          volume: '4 oz Dropper',
+          image: 'assets/shop/anti-itch-dandruff-growth-serum-enhanced.jpg',
+          description: 'Infused with all-natural therapeutic botanicals to soothe dry, itchy, dandruff-ridden scalps.'
+        },
+        {
+          id: 'control-freak-edge-polish',
+          title: 'ICY Edge Glaze',
+          price: '$20.00',
+          numericPrice: 20.00,
+          stock: 30,
+          category: 'edges styling',
+          volume: '4 oz Jar',
+          image: 'assets/shop/control-freak-edge-polish-enhanced.jpg',
+          description: 'Non-flaking, water-resistant formula engineered to sculpt edges and lay down coarse, resistant hair.'
+        },
+        {
+          id: 'grip-and-glide-braid-jam',
+          title: 'Grip and Glide Braid Jam',
+          price: '$15.00',
+          numericPrice: 15.00,
+          stock: 20,
+          category: 'braids locs',
+          volume: '8 oz Jar',
+          image: 'assets/shop/grip-and-glide-braid-jam-enhanced.jpg',
+          description: 'Extra-hold conditioning gel formulated specifically for neat parts, stitch braids, and sleek ponytail installations.'
+        },
+        {
+          id: 'aloe-rose-water-spritzer',
+          title: 'Aloe Rose Water Spritzer',
+          price: '$25.00',
+          numericPrice: 25.00,
+          stock: 15,
+          category: 'locs moisture',
+          volume: '8 oz Continuous Mist',
+          image: 'assets/shop/aloe-rose-water-spritzer-enhanced.jpg',
+          description: 'Refreshing daily tonic combining organic aloe barbadensis and distilled rose water.'
+        },
+        {
+          id: 'loc-butta-sauce',
+          title: 'Loc Butta Sauce',
+          price: '$25.00',
+          numericPrice: 25.00,
+          stock: 14,
+          category: 'locs moisture',
+          volume: '8 oz Jar',
+          image: 'assets/shop/loc-butta-sauce-enhanced.jpg',
+          description: 'Rich plant-butter soufflé crafted for retwisting, palm-rolling, and sealing thirsty locs without white film.'
+        },
+        {
+          id: 'citrus-quench-clarifying-shampoo',
+          title: 'Citrus Quench Clarifying Shampoo',
+          price: '$25.00',
+          numericPrice: 25.00,
+          stock: 12,
+          category: 'cleansers',
+          volume: '8 oz Bottle',
+          image: 'assets/shop/citrus-quench-clarifying-shampoo-enhanced.jpg',
+          description: 'Sulfate-free chelating cleanse that lifts silicone, product residue, and hard water buildup.'
+        },
+        {
+          id: 'citrus-quench-hydrating-conditioner',
+          title: 'Citrus Quench Hydrating Conditioner',
+          price: '$25.00',
+          numericPrice: 25.00,
+          stock: 12,
+          category: 'cleansers',
+          volume: '8 oz Bottle',
+          image: 'assets/shop/citrus-quench-hydrating-conditioner-enhanced.jpg',
+          description: 'High-slip moisture bath enriched with botanical silk proteins for instant detangling.'
+        },
+        {
+          id: 'off-da-hook-oil-drip-comb',
+          title: 'Off Da Hook Oil Drip Comb',
+          price: '$19.99',
+          numericPrice: 19.99,
+          stock: 10,
+          category: 'tools',
+          volume: 'Precision Applicator Tool',
+          image: 'assets/shop/off-da-hook-oil-drip-comb-enhanced.jpg',
+          description: 'Ergonomic scalp oil dispenser with roller-ball teeth that distributes serums directly to follicles.'
+        },
+        {
+          id: 'the-children-s-line',
+          title: "Perfect Paige's Unicorn Magic Hair System",
+          price: '$49.99',
+          numericPrice: 49.99,
+          stock: 8,
+          category: 'kids bundles',
+          volume: 'Gentle Tear-Free Trio',
+          image: 'assets/shop/the-children-s-line-enhanced.jpg',
+          description: 'Ultra-gentle formulation for tender scalps and growing curls. Tear-free hydration.'
+        },
+        {
+          id: 'fully-loaded-regrowth-system',
+          title: 'Fully Loaded Regrowth System',
+          price: '$100.00',
+          numericPrice: 100.00,
+          stock: 7,
+          category: 'bundles regrowth',
+          volume: 'Comprehensive Crown Recovery Kit',
+          image: 'assets/shop/fully-loaded-regrowth-system-enhanced.jpg',
+          description: 'The complete professional recovery protocol for severe thinning, edges, and tension damage.'
+        }
+      ];
+
+      // Sample Seed Orders for Demonstrating the Dashboard
+      const SEED_ORDERS = [
+        {
+          id: 'ODH-1042',
+          date: '2026-11-05 14:22',
+          customerName: 'Maya Jenkins',
+          customerEmail: 'm.jenkins@gmail.com',
+          customerPhone: '(917) 555-0142',
+          shippingAddress: '142-18 243rd St, Rosedale, NY 11422',
+          items: [
+            { title: 'Xxxtra Strength Regrowth Serum', variant: 'Small 4oz', quantity: 2, price: 25.00 },
+            { title: 'ICY Edge Glaze', variant: 'Crystal Clear', quantity: 1, price: 20.00 }
+          ],
+          totalAmount: 70.00,
+          paymentStatus: 'Paid (Stripe)',
+          fulfillmentStatus: 'Shipped'
+        },
+        {
+          id: 'ODH-1043',
+          date: '2026-11-06 09:15',
+          customerName: 'Danielle Brooks',
+          customerEmail: 'danielle.b@yahoo.com',
+          customerPhone: '(347) 555-8831',
+          shippingAddress: '350 Ocean Ave, Brooklyn, NY 11226',
+          items: [
+            { title: 'Loc Buffet Bundle Package', variant: 'Complete 5-Piece Set', quantity: 1, price: 99.99 }
+          ],
+          totalAmount: 99.99,
+          paymentStatus: 'Paid (PayPal)',
+          fulfillmentStatus: 'Pending'
+        }
+      ];
+
+      // Inventory Data Management
+      function getProducts() {
+        const stored = localStorage.getItem(STORAGE_KEY_PRODUCTS);
+        if (stored) {
+          try { return JSON.parse(stored); } catch (e) {}
+        }
+        localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(SEED_PRODUCTS));
+        return SEED_PRODUCTS;
+      }
+
+      async function syncProductToCloud(product) {
+        if (!window.location.protocol.startsWith('http')) return;
+        const currentPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+        try {
+          await fetch('/api/products', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-pin': currentPin
+            },
+            body: JSON.stringify({
+              id: product.id,
+              stock: product.stock,
+              price: product.numericPrice || parseFloat((product.price || '0').replace(/[^0-9.]/g, '')),
+              title: product.title,
+              category: product.category,
+              description: product.description,
+              pin: currentPin
+            })
+          });
+        } catch (e) {}
+      }
+
+      function saveProducts(products, targetProduct = null) {
+        localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
+        updateMetrics();
+        renderProducts();
+        showToast('Inventory updated successfully');
+        if (targetProduct) {
+          syncProductToCloud(targetProduct);
+        }
+      }
+
+      function getOrders() {
+        const stored = localStorage.getItem(STORAGE_KEY_ORDERS);
+        if (stored) {
+          try { return JSON.parse(stored); } catch (e) {}
+        }
+        localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(SEED_ORDERS));
+        return SEED_ORDERS;
+      }
+
+      async function syncOrderStatusToCloud(orderId, status) {
+        if (!window.location.protocol.startsWith('http')) return;
+        const currentPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+        try {
+          await fetch('/api/orders', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-pin': currentPin
+            },
+            body: JSON.stringify({
+              id: orderId,
+              fulfillment_status: status,
+              pin: currentPin
+            })
+          });
+        } catch (e) {}
+      }
+
+      function saveOrders(orders, updatedOrderId = null, newStatus = null) {
+        localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
+        updateMetrics();
+        renderOrders();
+        if (updatedOrderId && newStatus) {
+          syncOrderStatusToCloud(updatedOrderId, newStatus);
+        }
+      }
+
+      async function syncCloudBackend() {
+        if (!window.location.protocol.startsWith('http')) return;
+        const currentPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+
+        try {
+          const prodRes = await fetch('/api/products');
+          if (prodRes.ok) {
+            const data = await prodRes.json();
+            if (data && data.success && Array.isArray(data.products) && data.products.length > 0) {
+              localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(data.products));
+              updateMetrics();
+              renderProducts();
+            }
+          }
+        } catch (e) {}
+
+        try {
+          const ordRes = await fetch(`/api/orders?pin=${encodeURIComponent(currentPin)}`, {
+            headers: { 'x-admin-pin': currentPin }
+          });
+          if (ordRes.ok) {
+            const data = await ordRes.json();
+            if (data && data.success && Array.isArray(data.orders)) {
+              localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(data.orders));
+              updateMetrics();
+              renderOrders();
+            }
+          }
+        } catch (e) {}
+      }
+
+      function showToast(msg) {
+        const t = document.getElementById('adminToast');
+        if (!t) return;
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2600);
+      }
+
+      // Authentication
+      const loginScreen = document.getElementById('adminLoginScreen');
+      const mainContent = document.getElementById('adminMainContent');
+      const logoutBtn = document.getElementById('adminLogoutBtn');
+      const loginForm = document.getElementById('adminLoginForm');
+      const pinInput = document.getElementById('adminPinInput');
+      const loginError = document.getElementById('loginErrorMsg');
+
+      function checkAuth() {
+        const isAuth = sessionStorage.getItem(STORAGE_KEY_AUTH);
+        if (isAuth === 'true') {
+          loginScreen.style.display = 'none';
+          mainContent.style.display = 'block';
+          logoutBtn.style.display = 'inline-flex';
+          initDashboard();
+        } else {
+          loginScreen.style.display = 'flex';
+          mainContent.style.display = 'none';
+          logoutBtn.style.display = 'none';
+        }
+      }
+
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const storedPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+        if (pinInput.value === storedPin) {
+          sessionStorage.setItem(STORAGE_KEY_AUTH, 'true');
+          loginError.style.display = 'none';
+          pinInput.value = '';
+          checkAuth();
+        } else {
+          loginError.style.display = 'block';
+        }
+      });
+
+      logoutBtn.addEventListener('click', () => {
+        sessionStorage.removeItem(STORAGE_KEY_AUTH);
+        checkAuth();
+      });
+
+      // Tabs
+      document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.admin-tab-content').forEach(c => c.style.display = 'none');
+          btn.classList.add('active');
+          const target = btn.getAttribute('data-tab');
+          const tabContent = document.getElementById(target);
+          if (tabContent) tabContent.style.display = 'block';
+        });
+      });
+
+      // Render Metrics
+      function updateMetrics() {
+        const products = getProducts();
+        const orders = getOrders();
+
+        document.getElementById('metricTotalProducts').textContent = products.length;
+        const totalStock = products.reduce((acc, p) => acc + (parseInt(p.stock, 10) || 0), 0);
+        document.getElementById('metricTotalStock').textContent = totalStock;
+
+        const lowStock = products.filter(p => (parseInt(p.stock, 10) || 0) <= 3 && (parseInt(p.stock, 10) || 0) > 0).length;
+        document.getElementById('metricLowStock').textContent = lowStock;
+
+        document.getElementById('metricTotalOrders').textContent = orders.length;
+      }
+
+      // Render Products Table
+      function renderProducts(filterText = '') {
+        const tbody = document.getElementById('productsTableBody');
+        const products = getProducts();
+        tbody.innerHTML = '';
+
+        const term = filterText.toLowerCase().trim();
+        const filtered = products.filter(p => 
+          !term || p.title.toLowerCase().includes(term) || (p.category && p.category.toLowerCase().includes(term))
+        );
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#8E8A9F;">No products found matching your search.</td></tr>';
+          return;
+        }
+
+        filtered.forEach((prod, index) => {
+          const stock = parseInt(prod.stock, 10) || 0;
+          let statusBadge = '<span class="status-badge in-stock"><span style="width:6px; height:6px; border-radius:50%; background:#10B981;"></span> In Stock</span>';
+          if (stock === 0) {
+            statusBadge = '<span class="status-badge sold-out"><span style="width:6px; height:6px; border-radius:50%; background:#EF4444;"></span> Sold Out</span>';
+          } else if (stock <= 3) {
+            statusBadge = `<span class="status-badge low-stock"><span style="width:6px; height:6px; border-radius:50%; background:#F59E0B;"></span> Only ${stock} Left</span>`;
+          }
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <div class="admin-prod-cell">
+                <img src="${prod.image || 'assets/logo-emblem.jpg'}" alt="${prod.title}" class="admin-prod-thumb" onerror="this.src='assets/logo-emblem.jpg'">
+                <div>
+                  <div class="admin-prod-title">${prod.title}</div>
+                  <div class="admin-prod-category">${prod.volume || prod.category || 'Formulation'}</div>
+                </div>
+              </div>
+            </td>
+            <td><strong>${prod.price || '$' + (prod.numericPrice || 25).toFixed(2)}</strong></td>
+            <td>
+              <div class="admin-stock-control">
+                <button type="button" class="admin-stock-stepper stock-dec" data-id="${prod.id}">-</button>
+                <input type="number" min="0" class="admin-stock-input" data-id="${prod.id}" value="${stock}">
+                <button type="button" class="admin-stock-stepper stock-inc" data-id="${prod.id}">+</button>
+              </div>
+            </td>
+            <td>${statusBadge}</td>
+            <td style="text-align: right;">
+              <div style="display: inline-flex; gap: 8px;">
+                <button type="button" class="admin-btn-secondary edit-prod-btn" data-id="${prod.id}">Edit</button>
+                <button type="button" class="admin-btn-secondary delete-prod-btn" data-id="${prod.id}" style="color:#FF6B8B;">Delete</button>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Attach listeners for stock steppers and inputs
+        tbody.querySelectorAll('.stock-dec').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const prods = getProducts();
+            const p = prods.find(item => item.id === id);
+            if (p && p.stock > 0) {
+              p.stock = parseInt(p.stock, 10) - 1;
+              saveProducts(prods);
+            }
+          });
+        });
+
+        tbody.querySelectorAll('.stock-inc').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const prods = getProducts();
+            const p = prods.find(item => item.id === id);
+            if (p) {
+              p.stock = (parseInt(p.stock, 10) || 0) + 1;
+              saveProducts(prods);
+            }
+          });
+        });
+
+        tbody.querySelectorAll('.admin-stock-input').forEach(input => {
+          input.addEventListener('change', () => {
+            const id = input.getAttribute('data-id');
+            const val = Math.max(0, parseInt(input.value, 10) || 0);
+            const prods = getProducts();
+            const p = prods.find(item => item.id === id);
+            if (p) {
+              p.stock = val;
+              saveProducts(prods);
+            }
+          });
+        });
+
+        // Edit button
+        tbody.querySelectorAll('.edit-prod-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            openEditProductModal(id);
+          });
+        });
+
+        // Delete button
+        tbody.querySelectorAll('.delete-prod-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const prods = getProducts();
+            const p = prods.find(item => item.id === id);
+            if (p && confirm(`Are you sure you want to delete "${p.title}" from your store?`)) {
+              const updated = prods.filter(item => item.id !== id);
+              saveProducts(updated);
+            }
+          });
+        });
+      }
+
+      // Filter search
+      const searchInput = document.getElementById('productSearchInput');
+      searchInput.addEventListener('input', (e) => {
+        renderProducts(e.target.value);
+      });
+
+      // Product Add / Edit Modal
+      const productModal = document.getElementById('productModalOverlay');
+      const openAddBtn = document.getElementById('openAddProductBtn');
+      const closeProdModalBtn = document.getElementById('closeProductModalBtn');
+      const cancelProdBtn = document.getElementById('cancelProductBtn');
+      const productForm = document.getElementById('productForm');
+
+      function openAddProductModal() {
+        document.getElementById('productModalHeading').textContent = 'Add New Product';
+        document.getElementById('formProductId').value = '';
+        productForm.reset();
+        document.getElementById('formStock').value = '10';
+        productModal.classList.add('active');
+      }
+
+      function openEditProductModal(id) {
+        const prods = getProducts();
+        const prod = prods.find(p => p.id === id);
+        if (!prod) return;
+
+        document.getElementById('productModalHeading').textContent = 'Edit Product';
+        document.getElementById('formProductId').value = prod.id;
+        document.getElementById('formTitle').value = prod.title || '';
+        document.getElementById('formPrice').value = (prod.price || '$25.00').replace(/[^0-9.]/g, '');
+        document.getElementById('formStock').value = prod.stock || 0;
+        document.getElementById('formCategory').value = prod.category || '';
+        document.getElementById('formImage').value = prod.image || '';
+        document.getElementById('formDesc').value = prod.description || '';
+        productModal.classList.add('active');
+      }
+
+      openAddBtn.addEventListener('click', openAddProductModal);
+      closeProdModalBtn.addEventListener('click', () => productModal.classList.remove('active'));
+      cancelProdBtn.addEventListener('click', () => productModal.classList.remove('active'));
+
+      productForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = document.getElementById('formProductId').value;
+        const title = document.getElementById('formTitle').value.trim();
+        const rawPrice = parseFloat(document.getElementById('formPrice').value) || 25.00;
+        const stock = parseInt(document.getElementById('formStock').value, 10) || 0;
+        const category = document.getElementById('formCategory').value.trim();
+        const image = document.getElementById('formImage').value.trim() || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg';
+        const desc = document.getElementById('formDesc').value.trim();
+
+        const prods = getProducts();
+
+        if (id) {
+          // Edit
+          const p = prods.find(item => item.id === id);
+          if (p) {
+            p.title = title;
+            p.price = `$${rawPrice.toFixed(2)}`;
+            p.numericPrice = rawPrice;
+            p.stock = stock;
+            p.category = category;
+            p.image = image;
+            p.description = desc;
+          }
+        } else {
+          // Create new
+          const newId = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `prod-${Date.now()}`;
+          prods.unshift({
+            id: newId,
+            title: title,
+            price: `$${rawPrice.toFixed(2)}`,
+            numericPrice: rawPrice,
+            stock: stock,
+            category: category,
+            volume: 'Standard Size',
+            image: image,
+            description: desc
+          });
+        }
+
+        saveProducts(prods);
+        productModal.classList.remove('active');
+      });
+
+      // Render Orders Table
+      function renderOrders() {
+        const tbody = document.getElementById('ordersTableBody');
+        const orders = getOrders();
+        tbody.innerHTML = '';
+
+        if (orders.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#8E8A9F;">No customer orders placed yet.</td></tr>';
+          return;
+        }
+
+        orders.forEach(order => {
+          const isShipped = order.fulfillmentStatus === 'Shipped';
+          const itemsSummary = (order.items || []).map(i => `${i.quantity}x ${i.title}`).join(', ');
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong style="color:var(--admin-pink-light);">${order.id}</strong></td>
+            <td style="color:#9C97AA; font-size:12px;">${order.date}</td>
+            <td>
+              <div><strong>${order.customerName}</strong></div>
+              <div style="font-size:11.5px; color:#8E8A9F;">${order.customerEmail}</div>
+            </td>
+            <td style="max-width:260px; font-size:12.5px;">${itemsSummary || 'Signature Products'}</td>
+            <td><strong>$${(order.totalAmount || 0).toFixed(2)}</strong></td>
+            <td>
+              <button type="button" class="status-badge ${isShipped ? 'shipped' : 'pending'} toggle-ship-btn" data-id="${order.id}" style="cursor:pointer; border-radius:4px;">
+                ${isShipped ? '✓ Shipped' : 'Pending'}
+              </button>
+            </td>
+            <td style="text-align: right;">
+              <button type="button" class="admin-btn-secondary view-receipt-btn" data-id="${order.id}">View Receipt</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Toggle shipment status
+        tbody.querySelectorAll('.toggle-ship-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const orders = getOrders();
+            const order = orders.find(o => o.id === id);
+            if (order) {
+              order.fulfillmentStatus = order.fulfillmentStatus === 'Shipped' ? 'Pending' : 'Shipped';
+              saveOrders(orders);
+              showToast(`Order ${order.id} marked as ${order.fulfillmentStatus}`);
+            }
+          });
+        });
+
+        // View receipt button
+        tbody.querySelectorAll('.view-receipt-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            openReceiptModal(id);
+          });
+        });
+      }
+
+      // Receipt Modal
+      const receiptModal = document.getElementById('receiptModalOverlay');
+      const closeReceiptBtn = document.getElementById('closeReceiptModalBtn');
+      const doneReceiptBtn = document.getElementById('doneReceiptBtn');
+
+      function openReceiptModal(orderId) {
+        const orders = getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const container = document.getElementById('receiptContent');
+        const itemsHtml = (order.items || []).map(item => `
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+            <div>
+              <strong>${item.title}</strong>
+              <div style="font-size:11.5px; color:#8E8A9F;">Qty: ${item.quantity} ${item.variant ? '• ' + item.variant : ''}</div>
+            </div>
+            <strong>$${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</strong>
+          </div>
+        `).join('');
+
+        container.innerHTML = `
+          <div style="text-align:center; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:16px;">
+            <div style="font-family:var(--font-serif); font-size:24px; font-weight:700;">OFF DA HOOK SALON SUITES</div>
+            <div style="font-size:12px; color:#A39EB2;">Phenix Salon Suites Suite #192, 25300 Rockaway Blvd, Rosedale, NY 11422</div>
+            <div style="font-size:12px; color:#A39EB2;">(347) 238-1602 • offdahookhairsalon@gmail.com</div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Billed &amp; Shipped To:</div>
+              <div><strong>${order.customerName}</strong></div>
+              <div style="font-size:12px; color:#C2BFD0;">${order.shippingAddress || 'Store Pickup'}</div>
+              <div style="font-size:12px; color:#C2BFD0;">${order.customerEmail}</div>
+              <div style="font-size:12px; color:#C2BFD0;">${order.customerPhone || ''}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Order Reference:</div>
+              <div style="font-size:16px; font-weight:800; color:var(--admin-pink-light);">${order.id}</div>
+              <div style="font-size:12px; color:#9C97AA;">${order.date}</div>
+              <div style="font-size:12px; color:#34D399; font-weight:700; margin-top:4px;">${order.paymentStatus}</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F; margin-bottom:6px;">Purchased Formulas:</div>
+            ${itemsHtml}
+          </div>
+
+          <div style="display:flex; justify-content:space-between; padding-top:8px; font-size:16px; font-weight:800;">
+            <span>Total Paid (USD):</span>
+            <span style="color:var(--admin-pink-light);">$${(order.totalAmount || 0).toFixed(2)}</span>
+          </div>
+
+          <div style="margin-top:20px; padding:12px; background:rgba(255,255,255,0.03); border-radius:6px; font-size:11.5px; color:#8E8A9F; text-align:center;">
+            Thank you for trusting your crown to Master Stylist Shawnese Parker. An automated copy of this receipt was dispatched to ${order.customerEmail}.
+          </div>
+        `;
+
+        receiptModal.classList.add('active');
+      }
+
+      closeReceiptBtn.addEventListener('click', () => receiptModal.classList.remove('active'));
+      doneReceiptBtn.addEventListener('click', () => receiptModal.classList.remove('active'));
+
+      // Settings
+      const savePinBtn = document.getElementById('savePinBtn');
+      savePinBtn.addEventListener('click', () => {
+        const val = document.getElementById('settingNewPin').value.trim();
+        if (val) {
+          localStorage.setItem(STORAGE_KEY_PIN, val);
+          showToast('Dashboard Access PIN updated');
+        }
+      });
+
+      const saveApiKeysBtn = document.getElementById('saveApiKeysBtn');
+      saveApiKeysBtn.addEventListener('click', () => {
+        showToast('API credentials saved for live deployment');
+      });
+
+      // Init
+      function initDashboard() {
+        updateMetrics();
+        renderProducts();
+        renderOrders();
+        syncCloudBackend();
+      }
+
+      checkAuth();
+    })();
+  </script>
+</body>
+</html>

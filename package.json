@@ -1,0 +1,14 @@
+{
+  "name": "offdahook-salon-suites",
+  "version": "1.0.0",
+  "description": "Off Da Hook Salon Suites E-Commerce & Inventory Management",
+  "main": "main.js",
+  "scripts": {
+    "start": "serve ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "stripe": "^14.14.0"
+  }
+}
+

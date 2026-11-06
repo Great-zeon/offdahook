@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Career Opportunities &amp; Suite Rentals | Off Da Hook Salon Suites Rosedale, NY</title>
+  <meta name="description" content="Join Off Da Hook Salon Suites team in Rosedale, Queens. Openings for licensed stylists, locticians, braiders, salon assistants, suite rentals, and volunteer prom stylists.">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="Career Opportunities &amp; Suite Rentals | Off Da Hook Salon Suites">
+  <meta property="og:description" content="Grow your beauty career or rent a private suite inside Phenix Salon Suites at 25300 Rockaway Blvd, Rosedale, NY. Apply online today.">
+  <meta property="og:image" content="assets/daimage/shop.jpeg">
+  
+    <link rel="canonical" href="https://www.offdahookhairsalon.com/careers.html">
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Careers specific styles */
+    .career-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 28px;
+      margin-top: 40px;
+    }
+    .career-card {
+      background: #FFFFFF;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+    }
+    .career-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 40px rgba(255, 46, 147, 0.12);
+      border-color: rgba(255, 46, 147, 0.35);
+    }
+    .career-card.featured-card {
+      background: linear-gradient(145deg, #16141D 0%, #0D0C10 100%);
+      color: #FFFFFF;
+      border-color: rgba(255, 46, 147, 0.4);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+    }
+    .career-card.featured-card:hover {
+      box-shadow: 0 25px 50px rgba(255, 46, 147, 0.25);
+      border-color: var(--pink-primary);
+    }
+    .career-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 30px;
+      background: rgba(255, 46, 147, 0.1);
+      color: var(--pink-primary);
+      width: fit-content;
+      margin-bottom: 16px;
+    }
+    .career-card.featured-card .career-badge {
+      background: rgba(255, 46, 147, 0.25);
+      color: #FFA5D2;
+      border: 1px solid rgba(255, 46, 147, 0.4);
+    }
+    .career-title {
+      font-family: var(--font-display, 'Syne', sans-serif);
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+    .career-card.featured-card .career-title {
+      color: #FFFFFF;
+    }
+    .career-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 18px;
+    }
+    .career-card.featured-card .career-meta {
+      color: rgba(255, 255, 255, 0.65);
+    }
+    .career-desc {
+      font-size: 14.5px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin-bottom: 22px;
+      flex-grow: 1;
+    }
+    .career-card.featured-card .career-desc {
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .career-perks-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 24px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .career-perks-list li {
+      font-size: 13.5px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--text-primary);
+    }
+    .career-card.featured-card .career-perks-list li {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .career-perks-list li span.bullet {
+      color: var(--pink-primary);
+      font-weight: 800;
+      font-size: 15px;
+    }
+    .career-apply-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 13px 20px;
+      border-radius: 8px;
+      background: rgba(255, 46, 147, 0.08);
+      color: var(--pink-primary);
+      font-weight: 700;
+      font-size: 14px;
+      border: 1px solid rgba(255, 46, 147, 0.25);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      text-decoration: none;
+    }
+    .career-apply-btn:hover {
+      background: var(--pink-primary);
+      color: #FFFFFF;
+      border-color: var(--pink-primary);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(255, 46, 147, 0.35);
+    }
+    .career-card.featured-card .career-apply-btn {
+      background: var(--pink-primary);
+      color: #FFFFFF;
+      border-color: var(--pink-primary);
+    }
+    .career-card.featured-card .career-apply-btn:hover {
+      background: #ff52a2;
+      box-shadow: 0 10px 25px rgba(255, 46, 147, 0.5);
+    }
+    .application-section-card {
+      background: #FFFFFF;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 28px;
+      padding: clamp(30px, 5vw, 60px);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.05);
+      position: relative;
+    }
+    .form-success-banner {
+      display: none;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #065f46;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========================================================================
+       LUXURY BRAND PRELOADER
+       ======================================================================== -->
+  <div id="sitePreloader" class="site-preloader" aria-hidden="true">
+    <div class="preloader-backdrop"></div>
+    <div class="preloader-content">
+      <div class="preloader-logo-ring">
+        <div class="preloader-halo-rotate"></div>
+        <div class="preloader-emblem-wrap">
+          <img src="assets/offdahooklogo2.avif" alt="Off Da Hook Logo" class="preloader-logo-img" width="80" height="80">
+        </div>
+        <div class="preloader-pulse-glow"></div>
+      </div>
+      <div class="preloader-text-group">
+        <div class="preloader-brand-title">
+          <span>OFF DA HOOK</span>
+          <span class="preloader-sparkle"></span>
+        </div>
+        <div class="preloader-brand-sub">SALON SUITES • ROSEDALE, NY</div>
+        <div class="preloader-bar-track">
+          <div class="preloader-bar-fill"></div>
+        </div>
+        <div class="preloader-status-text">Loading career opportunities...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       FLOATING PILL NAVIGATION
+       ======================================================================== -->
+  <header class="nav-wrapper">
+    <nav class="nav-pill" aria-label="Main Navigation">
+      <a href="index.html" class="brand-logo" aria-label="Off Da Hook Salon Suites Home">
+        <div class="brand-icon">
+          <img src="assets/offdahooklogo2.avif" alt="Off Da Hook Salon Logo" width="40" height="40" onerror="this.src='assets/logo-emblem.jpg';">
+          <span class="brand-icon-fallback" style="display:none;">ODH</span>
+        </div>
+        <div class="brand-text">
+          <div class="brand-name">OFF DA HOOK </div>
+          <div class="brand-sub">SALON SUITES • ROSEDALE, NY</div>
+        </div>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="index.html" class="nav-link">Home</a></li>
+        <li class="nav-dropdown">
+          <a href="about.html" class="nav-link nav-dropdown-toggle active" id="aboutDropdownToggle" role="button" aria-haspopup="true" aria-expanded="false" style="color: var(--pink-primary); font-weight: 700;">
+            About Us
+            <svg class="dropdown-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </a>
+          <div class="nav-dropdown-menu" aria-labelledby="aboutDropdownToggle">
+            <a href="about.html#shawnese" class="nav-dropdown-item">
+              <div class="dropdown-item-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">About Shawnese</span>
+                <span class="dropdown-item-desc">Owner &amp; Master Stylist</span>
+              </div>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="about.html#brand" class="nav-dropdown-item">
+              <div class="dropdown-item-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path><line x1="9" y1="9" x2="10" y2="9"></line><line x1="14" y1="9" x2="15" y2="9"></line><line x1="9" y1="13" x2="10" y2="13"></line><line x1="14" y1="13" x2="15" y2="13"></line></svg></div>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">About The Brand</span>
+                <span class="dropdown-item-desc">Off Da Hook Salon Suites</span>
+              </div>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="about.html#amenities" class="nav-dropdown-item">
+              <div class="dropdown-item-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">Suite Amenities</span>
+                <span class="dropdown-item-desc">Private VIP Sanctuary</span>
+              </div>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="careers.html" class="nav-dropdown-item active" style="background: rgba(255, 46, 147, 0.08);">
+              <div class="dropdown-item-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg></div>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title" style="color: var(--pink-primary); font-weight: 700;">Career Opportunities</span>
+                <span class="dropdown-item-desc">Join Our Team &amp; Suite Rentals</span>
+              </div>
+            </a>
+          </div>
+        </li>
+        <li><a href="shop.html" class="nav-link">Shop</a></li>
+        <li><a href="services.html" class="nav-link">Our Services</a></li>
+        <li class="nav-dropdown">
+          <a href="gallery.html" class="nav-link nav-dropdown-toggle" id="activitiesDropdownToggle" role="button" aria-haspopup="true" aria-expanded="false">
+            Our Activities
+            <svg class="dropdown-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </a>
+          <div class="nav-dropdown-menu" aria-labelledby="activitiesDropdownToggle">
+            <a href="gallery.html" class="nav-dropdown-item">
+              <div class="dropdown-item-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg></div>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">Client Gallery</span>
+                <span class="dropdown-item-desc">Transformations &amp; Reels</span>
+              </div>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="index.html#nonprofit" class="nav-dropdown-item">
+              <div class="dropdown-item-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></div>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">Nonprofit Events</span>
+                <span class="dropdown-item-desc">Princess Chambers Prom Giving</span>
+              </div>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="gallery.html#bridal" class="nav-dropdown-item">
+              <div class="dropdown-item-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9l4-6z"></path></svg></div>
+              <div class="dropdown-item-info">
+                <span class="dropdown-item-title">Weddings &amp; Glam</span>
+                <span class="dropdown-item-desc">Bridal, Prom &amp; VIP Parties</span>
+              </div>
+            </a>
+          </div>
+        </li>
+        <li><a href="contact.html" class="nav-link">Contact Us</a></li>
+      </ul>
+
+      <div class="nav-cta-group">
+        <a href="tel:3472381602" class="btn-pill-secondary hidden-sm" aria-label="Call salon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+          (347) 238-1602
+        </a>
+        <button type="button" class="nav-cart-btn" id="navCartBtn" aria-label="Shopping Cart (0 items)" title="Shopping Cart">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          </svg>
+          <span class="nav-cart-badge">0</span>
+        </button>
+        <button type="button" class="btn-pill-primary open-booking-modal" id="nav-book-btn">
+          <span class="desktop-text">Book Appointment</span>
+          <span class="mobile-text"><span class="book-prefix">Book</span><span class="now-suffix"> Now</span></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </button>
+        <button type="button" class="mobile-menu-btn" aria-label="Toggle navigation menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Mobile Dropdown Drawer -->
+  <div class="mobile-nav-drawer" aria-hidden="true">
+    <a href="index.html" class="mobile-nav-link">Home <span>→</span></a>
+    
+    <div class="mobile-accordion-wrapper">
+      <button type="button" class="mobile-nav-link mobile-accordion-btn">
+        <span>About Us</span>
+        <svg class="mobile-accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="mobile-sub-drawer">
+        <a href="about.html#shawnese" class="mobile-sub-link">
+          <span class="mobile-sub-tag">Master Stylist</span>
+          <span class="mobile-sub-title">About Shawnese (The Owner)</span>
+        </a>
+        <a href="about.html#brand" class="mobile-sub-link">
+          <span class="mobile-sub-tag">Private Suite</span>
+          <span class="mobile-sub-title">About The Brand (Off Da Hook)</span>
+        </a>
+        <a href="about.html#amenities" class="mobile-sub-link">
+          <span class="mobile-sub-tag"> Amenities</span>
+          <span class="mobile-sub-title">Suite Sanctuary Amenities</span>
+        </a>
+        <a href="careers.html" class="mobile-sub-link active" style="color:var(--pink-primary); font-weight:700;">
+          <span class="mobile-sub-tag">Careers</span>
+          <span class="mobile-sub-title">Career Opportunities &amp; Suite Rentals</span>
+        </a>
+      </div>
+    </div>
+
+    <a href="shop.html" class="mobile-nav-link">Shop Hair Care <span>→</span></a>
+    <a href="services.html" class="mobile-nav-link">Our Services <span>→</span></a>
+    
+    <div class="mobile-accordion-wrapper">
+      <button type="button" class="mobile-nav-link mobile-accordion-btn">
+        <span>Our Activities</span>
+        <svg class="mobile-accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="mobile-sub-drawer">
+        <a href="gallery.html" class="mobile-sub-link">
+          <span class="mobile-sub-tag">Visuals</span>
+          <span class="mobile-sub-title">Client Gallery &amp; Reels</span>
+        </a>
+        <a href="index.html#nonprofit" class="mobile-sub-link">
+          <span class="mobile-sub-tag">Giving Back</span>
+          <span class="mobile-sub-title">Nonprofit &amp; Princess Chambers</span>
+        </a>
+        <a href="gallery.html#bridal" class="mobile-sub-link">
+          <span class="mobile-sub-tag">Special Events</span>
+          <span class="mobile-sub-title">Weddings &amp; Prom Transformations</span>
+        </a>
+      </div>
+    </div>
+
+    <a href="contact.html" class="mobile-nav-link">Contact Us <span>→</span></a>
+
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+      <a href="tel:3472381602" class="btn-pill-secondary" style="justify-content:center;">
+        Call: (347) 238-1602
+      </a>
+      <button type="button" class="btn-pill-primary open-booking-modal" style="width:100%;">
+        Book Suite Appointment
+      </button>
+    </div>
+  </div>
+
+  <main id="main-content">
+
+    <!-- ========================================================================
+         HERO SECTION: CAREERS & SUITE RENTALS
+         ======================================================================== -->
+    <section class="subpage-hero" style="background: radial-gradient(circle at 50% 0%, rgba(255, 46, 147, 0.12) 0%, #FAF8F5 70%);">
+      <div class="container">
+        
+        <div class="hero-badge-pill" style="margin-bottom: 18px;">
+          <span class="pulse-dot"></span>
+          <span> JOIN OUR EMPOWERED BEAUTY TEAM • PRIVATE SUITE CULTURE</span>
+        </div>
+
+        <h1 class="subpage-hero-title">
+          Elevate your artistry in <span class="serif-italic text-lux-gradient">private suite luxury.</span>
+        </h1>
+
+        <p class="subpage-hero-desc">
+          Whether you are a master loctician, precision braider, licensed cosmetologist, eager salon assistant, or independent beauty entrepreneur looking for luxury booth/suite rentals in Rosedale/Woodmere, NY - Off Da Hook Salon Suites is where passion meets prestige.
+        </p>
+
+        <div class="about-actions-group" style="justify-content: center; margin-top: 28px; gap: 14px;">
+          <a href="#openings" class="btn-hero-main" style="padding: 14px 34px; font-size: 15px;">
+            <span>Explore Open Opportunities</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+          </a>
+          <a href="#suite-rentals" class="btn-hero-video" style="padding: 14px 28px; font-size: 14.5px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+            <span>Private Suite &amp; Booth Rentals</span>
+          </a>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VALUE PILLARS: WHY OFF DA HOOK SALON SUITES?
+         ======================================================================== -->
+    <section class="suite-amenities-section reveal-on-scroll" style="padding: 70px 0; background: #FFFFFF; border-bottom: 1px solid rgba(0,0,0,0.06);">
+      <div class="container">
+        
+        <div class="section-header" style="text-align: center; margin-bottom: 48px;">
+          <div class="section-tag" style="background: rgba(255, 46, 147, 0.08); color: var(--pink-primary); border-color: rgba(255, 46, 147, 0.2);">The Suite Standard</div>
+          <h2 class="section-title" style="font-size: clamp(26px, 3.2vw, 42px); margin-bottom: 12px;">
+            Why Build Your Career <span class="serif-italic text-lux-gradient">With Us?</span>
+          </h2>
+          <p class="section-desc" style="max-width: 680px; margin: 0 auto;">
+            We believe that extraordinary client results start with an empowered, respected, and serene stylist environment.
+          </p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;">
+          
+          <div class="amenity-card" style="padding: 30px; border-radius: 8px; background: #FAF9F6; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 32px; margin-bottom: 14px;"></div>
+            <h3 style="font-family: var(--font-display); font-size: 19px; font-weight: 700; margin-bottom: 8px;">1-on-1 Sanctuary Culture</h3>
+            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+              Zero chaotic double-booking or loud salon noise. Focus 100% of your artistic attention on one guest in a calm, aromatherapy-infused private suite.
+            </p>
+          </div>
+
+          <div class="amenity-card" style="padding: 30px; border-radius: 8px; background: #FAF9F6; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 32px; margin-bottom: 14px;"></div>
+            <h3 style="font-family: var(--font-display); font-size: 19px; font-weight: 700; margin-bottom: 8px;">Exclusive Product Access</h3>
+            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+              Work with our high-potency handcrafted hair care lines - including Xxxtra Strength Regrowth Serum, ICY Edge Glaze, and Aloe Rose Water Spritzers.
+            </p>
+          </div>
+
+          <div class="amenity-card" style="padding: 30px; border-radius: 8px; background: #FAF9F6; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 32px; margin-bottom: 14px;"></div>
+            <h3 style="font-family: var(--font-display); font-size: 19px; font-weight: 700; margin-bottom: 8px;">High-Ticket Client Base</h3>
+            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+              Benefit from our verified StyleSeat 5-star reputation (1,000+ booked appointments) attracting discerning, appreciative, and generous clients.
+            </p>
+          </div>
+
+          <div class="amenity-card" style="padding: 30px; border-radius: 8px; background: #FAF9F6; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 32px; margin-bottom: 14px;"></div>
+            <h3 style="font-family: var(--font-display); font-size: 19px; font-weight: 700; margin-bottom: 8px;">Prime Queens/LI Location</h3>
+            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+              Situated inside Phenix Salon Suites at 25300 Rockaway Blvd in Rosedale/Woodmere with a massive free parking plaza, 24/7 security, and VIP lounge amenities.
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         OPEN POSITIONS & CAREER TRACKS
+         ======================================================================== -->
+    <section class="career-positions-section reveal-on-scroll" id="openings" style="padding: 90px 0; background: #FAF8F5;">
+      <div class="container">
+
+        <div class="section-header" style="text-align: left; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+          <div>
+            <div class="section-tag" style="background: rgba(255, 46, 147, 0.08); color: var(--pink-primary); border-color: rgba(255, 46, 147, 0.2);">Career Tracks</div>
+            <h2 class="section-title" style="font-size: clamp(28px, 3.5vw, 44px); margin-bottom: 10px;">
+              Current <span class="serif-italic text-lux-gradient">Opportunities</span>
+            </h2>
+            <p class="section-desc" style="max-width: 650px; margin: 0;">
+              Select a position below to review the qualifications and launch your direct application.
+            </p>
+          </div>
+          <a href="#apply" class="btn-pill-primary" style="padding: 13px 26px;">
+            <span>Jump to Quick Application</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </a>
+        </div>
+
+        <div class="career-grid">
+          
+          <!-- Track 1: Loctician & Microlocs Specialist -->
+          <div class="career-card featured-card">
+            <div>
+              <span class="career-badge"> Priority Role • Full or Part Time</span>
+              <h3 class="career-title">Loctician &amp; Microlocs Specialist</h3>
+              <div class="career-meta">
+                <span>Phenix Suites, Rosedale</span>
+                <span>•</span>
+                <span> Flexible Schedule</span>
+                <span>•</span>
+                <span> Commission / Booth Split</span>
+              </div>
+              <p class="career-desc">
+                We are actively seeking an experienced, detail-obsessed loctician proficient in interlocked microlocs reties, loc repairs, starter locs, and artisan loc styling. Must take pride in healthy scalp cultivation.
+              </p>
+              <ul class="career-perks-list">
+                <li><span class="bullet"></span> Consistent flow of booked microloc &amp; retwist clients</li>
+                <li><span class="bullet"></span> Access to commercial ozone steam infusion systems</li>
+                <li><span class="bullet"></span> Free supply of Off Da Hook Loc Butta &amp; serums</li>
+                <li><span class="bullet"></span> Supportive, private 1-on-1 client suite environment</li>
+              </ul>
+            </div>
+            <button type="button" class="career-apply-btn apply-role-trigger" data-role="Loctician &amp; Microlocs Specialist">
+              <span>Apply for Loctician Role</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+
+          <!-- Track 2: Licensed Cosmetologist / Master Stylist -->
+          <div class="career-card">
+            <div>
+              <span class="career-badge"> Licensed Cosmetologist</span>
+              <h3 class="career-title">Master Stylist (Silk Press &amp; Color)</h3>
+              <div class="career-meta">
+                <span>Phenix Suites, Rosedale</span>
+                <span>•</span>
+                <span> Full/Part Time</span>
+                <span>•</span>
+                <span> Competitive Earnings</span>
+              </div>
+              <p class="career-desc">
+                Seeking a talented NYS licensed cosmetologist skilled in featherweight silk presses, dimensional color/balayage, precision bob cuts, and deep restorative scalp detox therapies.
+              </p>
+              <ul class="career-perks-list">
+                <li><span class="bullet"></span> Valid New York State Cosmetology License required</li>
+                <li><span class="bullet"></span> Proven mastery in thermal silk press &amp; edge styling</li>
+                <li><span class="bullet"></span> Mentorship &amp; skill expansion alongside Shawnese</li>
+                <li><span class="bullet"></span> Luxury client amenities provided</li>
+              </ul>
+            </div>
+            <button type="button" class="career-apply-btn apply-role-trigger" data-role="Licensed Cosmetologist / Master Stylist">
+              <span>Apply for Stylist Role</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+
+          <!-- Track 3: Professional Braider (Boho & Bora Bora) -->
+          <div class="career-card">
+            <div>
+              <span class="career-badge"> Fast-Paced • High Demand</span>
+              <h3 class="career-title">Braider (Knotless &amp; Bora Bora)</h3>
+              <div class="career-meta">
+                <span>Phenix Suites, Rosedale</span>
+                <span>•</span>
+                <span> Weekend &amp; Weekday Shifts</span>
+                <span>•</span>
+                <span> High Ticket Volume</span>
+              </div>
+              <p class="career-desc">
+                Join our high-demand protective styling team! We need fast, neat, tension-free braiders skilled in Bohemian knotless, smedium Bora Bora braids with 100% human boho curls, and men's designer cornrows.
+              </p>
+              <ul class="career-perks-list">
+                <li><span class="bullet"></span> Precision geometric parting &amp; edge preservation</li>
+                <li><span class="bullet"></span> Experience handling human braiding hair &amp; curls</li>
+                <li><span class="bullet"></span> Generous tip culture &amp; loyal clientele</li>
+                <li><span class="bullet"></span> Grip and Glide braid jam provided in-suite</li>
+              </ul>
+            </div>
+            <button type="button" class="career-apply-btn apply-role-trigger" data-role="Professional Braider (Knotless &amp; Bora Bora)">
+              <span>Apply for Braider Role</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+
+          <!-- Track 4: Salon Assistant & Shampoo Technician -->
+          <div class="career-card">
+            <div>
+              <span class="career-badge"> Entry / Apprentice Welcome</span>
+              <h3 class="career-title">Salon Assistant &amp; Scalp Tech</h3>
+              <div class="career-meta">
+                <span>Phenix Suites, Rosedale</span>
+                <span>•</span>
+                <span> Part Time / Weekends</span>
+                <span>•</span>
+                <span> Hourly + Direct Tips</span>
+              </div>
+              <p class="career-desc">
+                Ideal for cosmetology students or aspiring hair artists! Deliver blissful clarifying shampoos, steam bowl treatments, takedown assistance, and maintain suite sanctuary cleanliness.
+              </p>
+              <ul class="career-perks-list">
+                <li><span class="bullet"></span> Hands-on experience in high-end private suite ops</li>
+                <li><span class="bullet"></span> Learn head spa massage &amp; herbal scalp detoxification</li>
+                <li><span class="bullet"></span> Flexible schedule catering to cosmetology students</li>
+                <li><span class="bullet"></span> Fast-track pathway to full suite stylist</li>
+              </ul>
+            </div>
+            <button type="button" class="career-apply-btn apply-role-trigger" data-role="Salon Assistant &amp; Scalp Tech">
+              <span>Apply for Assistant Role</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+
+          <!-- Track 5: Suite & Booth Rentals (Independent Pros) -->
+          <div class="career-card featured-card" id="suite-rentals">
+            <div>
+              <span class="career-badge"> Independent Entrepreneurs</span>
+              <h3 class="career-title">Private Suite &amp; Booth Rental</h3>
+              <div class="career-meta">
+                <span>Phenix Salon Suites, Rosedale</span>
+                <span>•</span>
+                <span> 24/7 Keycard Access</span>
+                <span>•</span>
+                <span> Be Your Own Boss</span>
+              </div>
+              <p class="career-desc">
+                Are you an established independent braider, loctician, lash tech, or cosmetologist looking for a turnkey, luxury private room inside Phenix Salon Suites? Keep 100% of your service and product income.
+              </p>
+              <ul class="career-perks-list">
+                <li><span class="bullet"></span> All utilities, Wi-Fi, and shampoo bowls included</li>
+                <li><span class="bullet"></span> Massive free parking plaza for your clients</li>
+                <li><span class="bullet"></span> Cross-referral opportunities with Off Da Hook</li>
+                <li><span class="bullet"></span> Flexible weekly / monthly lease agreements</li>
+              </ul>
+            </div>
+            <button type="button" class="career-apply-btn apply-role-trigger" data-role="Private Suite &amp; Booth Rental">
+              <span>Inquire for Suite Rental</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+
+          <!-- Track 6: Princess Chambers Prom Volunteer Stylists -->
+          <div class="career-card" style="border: 2px dashed rgba(255, 46, 147, 0.45); background: #FFF5F9;">
+            <div>
+              <span class="career-badge" style="background: rgba(255, 46, 147, 0.15); color: #D61F69;"> Community Nonprofit Call</span>
+              <h3 class="career-title" style="color: #9D174D;">Princess Chambers Prom Stylists</h3>
+              <div class="career-meta" style="color: #BE185D;">
+                <span> Annual Charity Event • May 3rd</span>
+                <span>•</span>
+                <span>Five Towns / Queens</span>
+              </div>
+              <p class="career-desc" style="color: #4B5563;">
+                Join Shawnese for the annual <strong>Princess Chambers Inc. Prom Giving Event</strong>! We provide free hair styling, dresses, and glam to ~100 deserving young ladies facing hardship. We are recruiting <strong>3 volunteer stylists/braiders</strong> to give back together!
+              </p>
+              <ul class="career-perks-list">
+                <li><span class="bullet" style="color: #D61F69;"></span> Certificate of appreciation &amp; community service recognition</li>
+                <li><span class="bullet" style="color: #D61F69;"></span> Full media &amp; press coverage / portfolio spotlight</li>
+                <li><span class="bullet" style="color: #D61F69;"></span> Gift bag with Off Da Hook luxury hair care products</li>
+                <li><span class="bullet" style="color: #D61F69;"></span> Transform lives and empower the next generation</li>
+              </ul>
+            </div>
+            <button type="button" class="career-apply-btn apply-role-trigger" data-role="Volunteer Stylist - Princess Chambers Prom Event (May 3rd)" style="background: #D61F69; color: #FFFFFF; border-color: #D61F69;">
+              <span>Volunteer for May 3rd Event</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         APPLICATION & SUITE INQUIRY FORM
+         ======================================================================== -->
+    <section class="career-form-section reveal-on-scroll" id="apply" style="padding: 90px 0; background: #FFFFFF;">
+      <div class="container">
+        
+        <div class="application-section-card">
+          
+          <div class="section-header" style="text-align: center; margin-bottom: 40px;">
+            <div class="section-tag" style="background: rgba(255, 46, 147, 0.08); color: var(--pink-primary); border-color: rgba(255, 46, 147, 0.2);">Direct Submission</div>
+            <h2 class="section-title" style="font-size: clamp(26px, 3.2vw, 42px); margin-bottom: 12px;">
+              Apply or Inquire <span class="serif-italic text-lux-gradient">Today</span>
+            </h2>
+            <p class="section-desc" style="max-width: 620px; margin: 0 auto;">
+              Complete the confidential form below. Shawnese reviews all candidate applications personally within 24 to 48 hours.
+            </p>
+          </div>
+
+          <div class="form-success-banner" id="careerSuccessBanner">
+            <h3 style="margin: 0 0 6px 0; font-size: 18px; font-weight: 700;"> Application Successfully Received!</h3>
+            <p style="margin: 0; font-size: 14.5px;">Thank you for your interest in Off Da Hook Salon Suites. Shawnese will contact you shortly via phone or email to discuss the next steps.</p>
+          </div>
+
+          <form class="booking-form" id="career-application-form">
+            
+            <div class="booking-options-row">
+              <div class="form-group">
+                <label class="form-label" for="applicant-name">Your Full Name *</label>
+                <input type="text" id="applicant-name" class="form-control" placeholder="Your Full Name" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="applicant-phone">Phone Number (Call or Text) *</label>
+                <input type="tel" id="applicant-phone" class="form-control" placeholder="(347) 238-1602" required>
+              </div>
+            </div>
+
+            <div class="booking-options-row">
+              <div class="form-group">
+                <label class="form-label" for="applicant-email">Email Address *</label>
+                <input type="email" id="applicant-email" class="form-control" placeholder="client@email.com" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="applicant-role">Position or Opportunity of Interest *</label>
+                <select id="applicant-role" class="form-control" required>
+                  <option value="">-- Choose Opportunity --</option>
+                  <option value="Loctician &amp; Microlocs Specialist">Loctician &amp; Microlocs Specialist</option>
+                  <option value="Licensed Cosmetologist / Master Stylist">Licensed Cosmetologist / Master Stylist</option>
+                  <option value="Professional Braider (Knotless &amp; Bora Bora)">Professional Braider (Knotless &amp; Bora Bora)</option>
+                  <option value="Salon Assistant &amp; Scalp Tech">Salon Assistant &amp; Scalp Tech</option>
+                  <option value="Private Suite &amp; Booth Rental">Private Suite &amp; Booth Rental (Independent Pro)</option>
+                  <option value="Volunteer Stylist - Princess Chambers Prom Event (May 3rd)">Volunteer Stylist - Princess Chambers Prom (May 3rd)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="booking-options-row">
+              <div class="form-group">
+                <label class="form-label" for="applicant-experience">Years in the Beauty/Hair Industry *</label>
+                <select id="applicant-experience" class="form-control" required>
+                  <option value="">-- Select Experience Level --</option>
+                  <option value="Cosmetology Student / Beginner (<1 year)">Cosmetology Student / Beginner (&lt;1 year)</option>
+                  <option value="1 to 2 Years">1 to 2 Years</option>
+                  <option value="3 to 5 Years">3 to 5 Years</option>
+                  <option value="5+ Years (Seasoned Pro)">5+ Years (Seasoned Pro)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="applicant-license">License / Professional Status *</label>
+                <select id="applicant-license" class="form-control" required>
+                  <option value="">-- Select Status --</option>
+                  <option value="NYS Licensed Cosmetologist">NYS Licensed Cosmetologist</option>
+                  <option value="Currently Enrolled in Cosmetology School">Currently Enrolled in Cosmetology School</option>
+                  <option value="Natural Hair Stylist / Unlicensed Specialist">Natural Hair Stylist / Unlicensed Specialist</option>
+                  <option value="Independent Business Owner looking for Suite Rental">Independent Business Owner looking for Suite Rental</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="booking-options-row">
+              <div class="form-group">
+                <label class="form-label" for="applicant-instagram">Instagram Handle or Portfolio Link (Recommended)</label>
+                <input type="text" id="applicant-instagram" class="form-control" placeholder="e.g. @hair_by_maya or website URL">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="applicant-availability">Preferred Availability *</label>
+                <select id="applicant-availability" class="form-control" required>
+                  <option value="">-- Select Availability --</option>
+                  <option value="Full-Time (4-5 days/week)">Full-Time (4-5 days/week)</option>
+                  <option value="Part-Time (2-3 days/week)">Part-Time (2-3 days/week)</option>
+                  <option value="Weekends Only (Fri/Sat/Sun)">Weekends Only (Fri/Sat/Sun)</option>
+                  <option value="Suite Rental Inquirer (Full-Time Suite)">Suite Rental Inquirer (Full-Time Suite)</option>
+                  <option value="May 3rd Prom Event Only">May 3rd Prom Event Only (Volunteer)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="applicant-notes">Tell Shawnese About Your Specialties &amp; Goals</label>
+              <textarea id="applicant-notes" class="form-control" rows="4" placeholder="Briefly describe your favorite styling techniques, speed, client experience ethos, or any questions about suite rental..."></textarea>
+            </div>
+
+            <button type="submit" class="btn-submit-booking" id="careerSubmitBtn" style="width: 100%; justify-content: center; padding: 16px;">
+              <span>Submit Confidential Application</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+
+          </form>
+
+          <div style="margin-top: 36px; padding-top: 28px; border-top: 1px solid rgba(0,0,0,0.08); text-align: center;">
+            <p style="font-size: 14.5px; color: var(--text-secondary); margin-bottom: 12px;">
+              Prefer to speak or text with Shawnese directly before applying?
+            </p>
+            <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 16px;">
+              <a href="tel:3472381602" class="btn-pill-secondary" style="font-size: 14px;">
+                Call / Text: <a href="tel:3472381602" style="color:inherit; text-decoration:none;">(347) 238-1602</a>
+              </a>
+              <a href="https://www.instagram.com/offdahookhairsalon/?hl=en" target="_blank" rel="noopener" class="btn-pill-secondary" style="font-size: 14px;">
+                 Instagram DM: @offdahookhairsalon
+              </a>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================
+       FOOTER
+       ======================================================================== -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        
+        <div class="footer-brand-col">
+          <a href="index.html" class="footer-logo" style="text-decoration:none; display:flex; align-items:center; gap:12px;" aria-label="Off Da Hook Salon Suites Home">
+            <img src="assets/offdahooklogo2.avif" alt="Off Da Hook Salon Logo" width="40" height="40" onerror="this.src='assets/logo-emblem.jpg';">
+            <div>
+              <div class="footer-brand-name">OFF DA HOOK</div>
+              <div class="footer-brand-sub">SALON SUITES &bull; ROSEDALE, NY</div>
+            </div>
+          </a>
+          <p class="footer-tagline">
+            Exclusive 1-on-1 private suite hair artistry by master stylist Shawnese Parker. Never double-booked, always dedicated to healthy hair restoration and royal care.
+          </p>
+          <div class="footer-rating-badge">
+            <span class="stars">★★★★★</span>
+            <span>4.9 on StyleSeat • 1,000+ Booked Clients</span>
+          </div>
+        </div>
+
+        <div class="footer-col">
+          <h4 class="footer-col-title">Suite Sanctuary</h4>
+          <ul class="footer-links-list">
+            <li><a href="about.html">About Shawnese &amp; Brand</a></li>
+            <li><a href="services.html">Services &amp; Pricing</a></li>
+            <li><a href="shop.html">Hair Care Products</a></li>
+            <li><a href="gallery.html">Visual Client Gallery</a></li>
+            <li><a href="careers.html">Career Opportunities</a></li>
+            <li><a href="contact.html">Private Suite Directions</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4 class="footer-col-title">Signature Specialties</h4>
+          <ul class="footer-links-list">
+            <li><a href="services.html">Microlocs &amp; Reties</a></li>
+            <li><a href="services.html">Signature Featherweight Silk Press</a></li>
+            <li><a href="services.html">Knotless &amp; Bora Bora Braids</a></li>
+            <li><a href="services.html">Invisible K-Tips &amp; Sew-Ins</a></li>
+            <li><a href="services.html">Head Spa &amp; Scalp Detox</a></li>
+            <li><a href="index.html#nonprofit">Princess Chambers Prom Giving</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4 class="footer-col-title">Suite Location &amp; Hours</h4>
+          <p class="footer-contact-item">
+            <strong>Phenix Salon Suites</strong><br>
+            25300 Rockaway Blvd<br>
+            Rosedale / Woodmere, NY 11422
+          </p>
+          <p class="footer-contact-item">
+            <strong>Hours of Luxury:</strong><br>
+            Tues - Sat: 8:00 AM - 7:00 PM<br>
+            Sun - Mon: Reserved for VIP / Private Events
+          </p>
+          <p class="footer-contact-item">
+            <a href="tel:3472381602" style="color:var(--pink-primary); font-weight:700;">(347) 238-1602</a><br>
+            <a href="mailto:offdahookhairsalon@gmail.com" style="color:var(--text-dark-sub);">offdahookhairsalon@gmail.com</a>
+          </p>
+        </div>
+
+      </div>
+
+      <div class="footer-bottom-bar">
+        <div class="footer-copy">
+          &copy; 2026 Off Da Hook Salon Suites. All Rights Reserved. Master Stylist Shawnese Parker.
+        </div>
+        <div class="footer-legal-links" style="display:flex; gap:16px;">
+          <a href="privacy.html" style="color:var(--text-dark-sub);">Privacy Policy</a>
+          <a href="terms.html" style="color:var(--text-dark-sub);">Terms &amp; Conditions</a>
+          <a href="https://www.styleseat.com/m/v/stylist101" target="_blank" rel="noopener" style="color:var(--purple-light);">StyleSeat Booking &#8599;</a>
+        </div>
+        <div class="footer-legal-links" style="display:flex; gap:8px;">
+          <span>Phenix Salon Suites, Rosedale, NY</span>
+          <span>•</span>
+          <a href="tel:3472381602" style="color:var(--pink-light); text-decoration:none;">(347) 238-1602</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================
+       BOOKING MODAL & APPOINTMENT REQUEST
+       ======================================================================== -->
+  <div class="booking-modal-overlay" aria-hidden="true" role="dialog">
+    <div class="booking-modal-card">
+      <button type="button" class="booking-close-btn" aria-label="Close booking modal">✕</button>
+
+      <div class="booking-header">
+        <h2 class="booking-title">Reserve Your <span class="serif-italic">Suite Experience</span></h2>
+        <p class="booking-sub">Choose your desired styling service or contact Shawnese directly.</p>
+      </div>
+
+      <!-- StyleSeat VIP Instant Booking Banner -->
+      <div class="booking-instant-styleseat-banner">
+        <div class="styleseat-banner-content">
+          <div class="styleseat-badge-tag"> Instant Live Booking</div>
+          <div class="styleseat-badge-title">Book Directly on StyleSeat</div>
+          <p class="styleseat-badge-sub">Real-time availability, instant slot confirmation &amp; 1,000+ verified 5-star reviews.</p>
+        </div>
+        <a href="https://www.styleseat.com/m/v/stylist101" target="_blank" rel="noopener" class="btn-styleseat-instant" id="modalStyleSeatBtn">
+          Book on StyleSeat <span>↗</span>
+        </a>
+      </div>
+
+      <div class="booking-divider-or"><span>OR REQUEST SUITE CONSULTATION</span></div>
+
+      <form class="booking-form" id="appointment-form">
+        <div class="form-group">
+          <label class="form-label" for="client-name">Your Full Name *</label>
+          <input type="text" id="client-name" class="form-control" placeholder="Your Full Name" required>
+        </div>
+
+        <div class="booking-options-row">
+          <div class="form-group">
+            <label class="form-label" for="client-phone">Phone Number *</label>
+            <input type="tel" id="client-phone" class="form-control" placeholder="(347) 238-1602" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="booking-date">Preferred Date *</label>
+            <input type="date" id="booking-date" class="form-control" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="booking-service-select">Select Hair Service *</label>
+          <select id="booking-service-select" class="form-control" required>
+            <option value="">-- Choose a Service --</option>
+            <option value="Signature Featherweight Silk Press">Signature Featherweight Silk Press ($175+)</option>
+            <option value="Silk Press, Precision Shape &amp; Ozone Steam">Silk Press, Precision Shape &amp; Ozone Steam ($220+)</option>
+            <option value="Medium Knotless Box Braids">Medium Knotless Box Braids ($350+)</option>
+            <option value="Bohemian Goddess Knotless Braids">Bohemian Goddess Knotless Braids ($450+)</option>
+            <option value="Loc Maintenance &amp; Retwist">Loc Maintenance &amp; Retwist ($175+)</option>
+            <option value="Loc Retwist with Custom Styling">Loc Retwist with Custom Styling ($225+)</option>
+            <option value="Full Color &amp; Dimensional Balayage">Full Color &amp; Dimensional Balayage ($200+)</option>
+            <option value="Single Process Rich Color &amp; Hydration">Single Process Rich Color &amp; Hydration ($150+)</option>
+            <option value="Serenity Suite Head Spa &amp; Scalp Detox">Serenity Suite Head Spa &amp; Scalp Detox ($175+)</option>
+            <option value="Traditional Sew-In with Leaveout">Traditional Sew-In with Leaveout ($250+)</option>
+            <option value="Mens Braids &amp; Executive Grooming">Mens Braids &amp; Executive Grooming ($125+)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="client-notes">Notes or Hair Goals (Optional)</label>
+          <textarea id="client-notes" class="form-control" rows="3"
+            placeholder="Tell Shawnese about your current hair length, texture, or inspiration look..."></textarea>
+        </div>
+
+        <button type="submit" class="btn-submit-booking">
+          Submit Appointment Request <span>→</span>
+        </button>
+      </form>
+
+      <div class="booking-direct-links">
+        <a href="https://www.styleseat.com/m/v/stylist101" target="_blank" rel="noopener"
+          class="direct-link-btn styleseat-featured-link">
+          <span> StyleSeat Live Booking • 1,000+ Reviews</span>
+          <strong>Book Online Instantly →</strong>
+        </a>
+        <a href="tel:3472381602" class="direct-link-btn">
+          <span>Instant Call / Text</span>
+          <strong><a href="tel:3472381602" style="color:inherit; text-decoration:none;">(347) 238-1602</a></strong>
+        </a>
+        <a href="https://www.instagram.com/offdahookhairsalon/?hl=en" target="_blank" rel="noopener"
+          class="direct-link-btn">
+          <span> Instagram Direct Message</span>
+          <strong>@offdahookhairsalon</strong>
+        </a>
+        <a href="https://maps.google.com/?q=25300+Rockaway+Blvd,+Rosedale,+NY" target="_blank" rel="noopener"
+          class="direct-link-btn">
+          <span>Get Directions (Phenix Suites)</span>
+          <strong>Rosedale, NY</strong>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       FLOATING ACTION CORNER (Call & Book Buttons)
+       ======================================================================== -->
+  <div class="floating-action-corner">
+    <a href="tel:3472381602" class="btn-floating-pill" id="quick-call-pill" aria-label="Call salon directly">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+      </svg>
+      <span class="floating-call-text">(347) 238-1602</span>
+    </a>
+    <button type="button" class="btn-floating-pill glow-btn open-booking-modal" id="quick-book-pill" aria-label="Book private salon suite">
+      <span> Book Suite</span>
+    </button>
+    <div class="scroll-top-btn" aria-label="Scroll to top">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="18 15 12 9 6 15"></polyline>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="main.js" defer></script>
+  <script>
+    // Career application form handlers & auto-fill from role cards
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.apply-role-trigger').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const roleName = btn.getAttribute('data-role');
+          const select = document.getElementById('applicant-role');
+          if (select && roleName) {
+            select.value = roleName;
+          }
+          const formSec = document.getElementById('apply');
+          if (formSec) {
+            formSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(() => {
+              const nameInput = document.getElementById('applicant-name');
+              if (nameInput) nameInput.focus();
+            }, 600);
+          }
+        });
+      });
+
+      const careerForm = document.getElementById('career-application-form');
+      const successBanner = document.getElementById('careerSuccessBanner');
+      if (careerForm) {
+        careerForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const name = document.getElementById('applicant-name')?.value;
+          const role = document.getElementById('applicant-role')?.value;
+          if (successBanner) {
+            successBanner.style.display = 'block';
+            successBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          careerForm.reset();
+        });
+      }
+    });
+  </script>
+</body>
+</html>
