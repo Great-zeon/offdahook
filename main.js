@@ -141,8 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
     video.setAttribute('playsinline', 'true');
   });
 
-  // Track currently playing videos with a hard cap (max 2 active streams)
-  const MAX_CONCURRENT_VIDEOS = 2;
+  // Track currently playing videos with a safe concurrency cap
+  const MAX_CONCURRENT_VIDEOS = 6;
   const currentlyPlaying = new Set();
 
   function safePlayVideo(video) {
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     allReelVideos.forEach(v => safePauseVideo(v));
   }
 
-  // 1. Hero Marquee: Pause entirely when scrolled out of view
+  // 1. Hero Marquee: Pause entirely when scrolled out of view, play when visible
   const heroMarquee = document.querySelector('.hero-visual-marquee');
   if (heroMarquee) {
     const heroObserver = new IntersectionObserver((entries) => {
@@ -188,11 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!entry.isIntersecting) {
           marqueeVideos.forEach(v => safePauseVideo(v));
         } else {
-          // Play only the first 2 visible marquee videos for smooth performance
-          marqueeVideos.forEach((v, idx) => {
-            if (idx < 2) safePlayVideo(v);
-            else safePauseVideo(v);
-          });
+          marqueeVideos.forEach(v => safePlayVideo(v));
         }
       });
     }, { threshold: 0.1 });
@@ -225,8 +221,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   contentVideoCards.forEach(card => cardObserver.observe(card));
 
-  // 3. Desktop Hover-to-Play for instant responsiveness
-  contentVideoCards.forEach(card => {
+  // 3. Desktop Hover-to-Play and Touch for instant responsiveness
+  const allInteractiveCards = document.querySelectorAll('.reel-preview-card, .reel-card-main, .mosaic-tile');
+  allInteractiveCards.forEach(card => {
     const video = card.querySelector('video');
     if (!video) return;
 
@@ -234,14 +231,9 @@ document.addEventListener('DOMContentLoaded', () => {
       safePlayVideo(video);
     });
 
-    card.addEventListener('mouseleave', () => {
-      // If card is not centered in viewport, pause on mouse leave
-      const rect = card.getBoundingClientRect();
-      const isCentered = rect.top > 0 && rect.bottom < window.innerHeight;
-      if (!isCentered) {
-        safePauseVideo(video);
-      }
-    });
+    card.addEventListener('touchstart', () => {
+      safePlayVideo(video);
+    }, { passive: true });
   });
 
   // 4. Scroll debounce: check active centered video smoothly on scroll
@@ -3410,8 +3402,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function applyStockToCards() {
       const inv = getInventory();
-      document.querySelectorAll('.shop-catalog-card').forEach(card => {
-        const titleEl = card.querySelector('.shop-card-title');
+      document.querySelectorAll('.shop-catalog-card, .product-luxury-card').forEach(card => {
+        const titleEl = card.querySelector('.shop-card-title, .product-name-title');
         if (!titleEl) return;
         const titleText = titleEl.textContent.trim().toLowerCase();
 
@@ -3421,8 +3413,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (match) {
           const stock = parseInt(match.stock, 10) || 0;
-          const imageBox = card.querySelector('.shop-card-image-box');
+          const imageBox = card.querySelector('.shop-card-image-box, .product-stage-col');
           const addBtn = card.querySelector('.btn-add-cart');
+          const addBtnSpan = addBtn?.querySelector('span') || addBtn;
 
           card.querySelectorAll('.stock-badge-soldout, .stock-badge-low').forEach(b => b.remove());
 
@@ -3439,7 +3432,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (addBtn) {
               addBtn.disabled = true;
-              addBtn.textContent = 'Sold Out';
+              if (addBtnSpan) addBtnSpan.textContent = 'Sold Out';
               addBtn.style.opacity = '0.5';
               addBtn.style.cursor = 'not-allowed';
             }
@@ -3462,7 +3455,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (addBtn) {
               addBtn.disabled = false;
-              addBtn.textContent = 'Add to Cart';
               addBtn.style.opacity = '1';
               addBtn.style.cursor = 'pointer';
             }
@@ -3475,7 +3467,6 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             if (addBtn) {
               addBtn.disabled = false;
-              addBtn.textContent = 'Add to Cart';
               addBtn.style.opacity = '1';
               addBtn.style.cursor = 'pointer';
             }
@@ -3526,10 +3517,10 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         if (btn.disabled) return;
 
-        const card = btn.closest('.shop-catalog-card') || btn.closest('.product-card') || btn.closest('div');
-        const title = btn.getAttribute('data-product') || card?.querySelector('.shop-card-title')?.textContent?.trim() || 'Signature Formula';
-        const price = btn.getAttribute('data-price') || card?.querySelector('.shop-card-price')?.textContent?.trim() || '$25.00';
-        const image = card?.querySelector('img')?.getAttribute('src') || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg';
+        const card = btn.closest('.shop-catalog-card') || btn.closest('.product-luxury-card') || btn.closest('.product-card') || btn.closest('div');
+        const title = btn.getAttribute('data-product') || card?.querySelector('.product-name-title')?.textContent?.trim() || card?.querySelector('.shop-card-title')?.textContent?.trim() || 'Signature Formula';
+        const price = btn.getAttribute('data-price') || card?.querySelector('.product-price-amount')?.textContent?.trim() || card?.querySelector('.shop-card-price')?.textContent?.trim() || '$25.00';
+        const image = card?.querySelector('.product-enhanced-img')?.getAttribute('src') || card?.querySelector('img')?.getAttribute('src') || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg';
 
         let variant = '';
         if (title.includes(' - ')) {
