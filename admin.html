@@ -1122,9 +1122,30 @@
       const pinInput = document.getElementById('adminPinInput');
       const loginError = document.getElementById('loginErrorMsg');
 
-      function checkAuth() {
+      async function checkAuth() {
         const isAuth = sessionStorage.getItem(STORAGE_KEY_AUTH);
-        if (isAuth === 'true') {
+        const token = sessionStorage.getItem(STORAGE_KEY_TOKEN);
+
+        if (isAuth === 'true' && token) {
+          // Verify token validity with server
+          if (window.location.protocol.startsWith('http')) {
+            try {
+              const res = await fetch('/api/auth', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (!res.ok) {
+                sessionStorage.removeItem(STORAGE_KEY_AUTH);
+                sessionStorage.removeItem(STORAGE_KEY_TOKEN);
+                loginScreen.style.display = 'flex';
+                mainContent.style.display = 'none';
+                logoutBtn.style.display = 'none';
+                loginError.textContent = 'Your session has expired. Please log in again.';
+                loginError.style.display = 'block';
+                return;
+              }
+            } catch (e) {}
+          }
+
           loginScreen.style.display = 'none';
           mainContent.style.display = 'block';
           logoutBtn.style.display = 'inline-flex';
@@ -1143,20 +1164,32 @@
 
         if (!enteredPin) return;
 
-        // Verify admin passcode against backend server
+        // Authenticate with server to obtain cryptographic session token
         if (window.location.protocol.startsWith('http')) {
           try {
-            const verifyRes = await fetch('/api/orders', {
-              headers: { 'Authorization': `Bearer ${enteredPin}` }
+            const authRes = await fetch('/api/auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pin: enteredPin })
             });
 
-            if (verifyRes.status === 401) {
-              loginError.textContent = 'Invalid Admin Passcode. Access denied.';
+            const data = await authRes.json();
+
+            if (!authRes.ok || !data.success || !data.token) {
+              loginError.textContent = data.error || 'Invalid Admin Passcode. Access denied.';
               loginError.style.display = 'block';
               return;
             }
+
+            sessionStorage.setItem(STORAGE_KEY_TOKEN, data.token);
+            sessionStorage.setItem(STORAGE_KEY_AUTH, 'true');
+            pinInput.value = '';
+            checkAuth();
+            return;
           } catch (err) {
-            console.warn('Network validation check bypassed:', err);
+            loginError.textContent = 'Network communication error. Please try again.';
+            loginError.style.display = 'block';
+            return;
           }
         }
 
@@ -1168,6 +1201,7 @@
 
       logoutBtn.addEventListener('click', () => {
         sessionStorage.removeItem(STORAGE_KEY_AUTH);
+        sessionStorage.removeItem(STORAGE_KEY_TOKEN);
         checkAuth();
       });
 

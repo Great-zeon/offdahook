@@ -1,7 +1,9 @@
 // ========================================================================
 // OFF DA HOOK SALON SUITES - HARDENED PRODUCTS & INVENTORY API (VERCEL SERVERLESS)
+// Cryptographic Token Verification for Catalog & Stock Modifications
 // ========================================================================
 const { createClient } = require('@supabase/supabase-js');
+const { verifyToken } = require('./auth');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,33 +19,26 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-pin, x-admin-key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Helper: Secure Server-Side Authorization Verification
+  // Helper: Secure Cryptographic Session Token Verification
   const isAuthorized = () => {
     const authHeader = req.headers['authorization'];
-    let token = null;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7).trim();
-    } else {
-      token = req.headers['x-admin-key'] || req.headers['x-admin-pin'] || req.body?.pin;
-    }
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
 
-    const expected = process.env.ADMIN_PIN;
-    if (!expected) {
-      console.warn('SECURITY ALERT: ADMIN_PIN environment variable is not defined.');
-      return false;
-    }
+    const token = authHeader.substring(7).trim();
+    const masterPin = process.env.ADMIN_PIN;
+    if (!masterPin) return false;
 
-    return token === expected;
+    return verifyToken(token, masterPin) !== null;
   };
 
   try {
-    // GET: Fetch all products with authoritative stock
+    // GET: Fetch all products with authoritative stock (Public Access)
     if (req.method === 'GET') {
       if (supabase) {
         const { data, error } = await supabase
@@ -82,7 +77,7 @@ module.exports = async (req, res) => {
     // PUT: Update stock quantity or product details (Restricted to Admin)
     if (req.method === 'PUT') {
       if (!isAuthorized()) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin Credentials' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid' });
       }
 
       const { id, stock, price, title, category, description } = req.body;
@@ -112,7 +107,7 @@ module.exports = async (req, res) => {
     // POST: Add new product (Restricted to Admin)
     if (req.method === 'POST') {
       if (!isAuthorized()) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin Credentials' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid' });
       }
 
       const { id, title, price, stock, category, volume, image, description } = req.body;
@@ -147,7 +142,7 @@ module.exports = async (req, res) => {
     // DELETE: Archive product (Restricted to Admin)
     if (req.method === 'DELETE') {
       if (!isAuthorized()) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin Credentials' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid' });
       }
 
       const { id } = req.body || req.query;

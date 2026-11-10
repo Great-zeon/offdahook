@@ -1,118 +1,73 @@
-# OFF DA HOOK — HUMAN ACTION REQUIRED & CREDENTIAL CHECKLIST
-**Project:** Off Da Hook Salon Suites E-Commerce Platform  
-**Target Date:** Pre-Launch Activation  
-**Audience:** Website Owner (Shawnese Parker), Project Lead & Production Operations  
-**Security Warning:** NEVER commit real production secret keys (`sk_live_...`, `whsec_...`, service role keys) into GitHub or paste them into public chat. Add them directly into the Vercel Project Settings under Environment Variables.
+# OFF DA HOOK — EXTERNAL DEPENDENCIES & HUMAN ACTION REQUIRED
+**Target System:** Off Da Hook Salon Suites E-Commerce Application  
+**Audit Stage:** Post-Hardening Production Assessment  
+**Audience:** Website Owner (Shawnese Parker), Developer & Operations Team  
+**Security Policy:** Never transmit production secret keys in chat or commit them to Git. Add them directly into the Vercel Dashboard under **Project Settings > Environment Variables**.
 
 ---
 
-## 1. STRIPE PAYMENT GATEWAY ACTIVATION
+## 1. BLOCKER REGISTER & ACTION MATRIX
 
-To accept real credit cards, debit cards, Apple Pay, and Google Pay from live customers, the following human actions must be completed inside the **Stripe Dashboard** (`https://dashboard.stripe.com`):
-
-### Action 1.1: Complete Business Activation & Bank Account Link
-* Log into Stripe and complete merchant identity verification (LLC / Sole Proprietorship, EIN / SSN, salon business address at Phenix Salon Suites Suite #192, Rosedale, NY).
-* Add payout bank routing and account numbers so funds from hair formula sales deposit directly into Off Da Hook's bank account.
-
-### Action 1.2: Obtain Live API Keys
-* In the Stripe Dashboard, toggle from **Test Mode** to **Live Mode**.
-* Navigate to **Developers > API Keys**.
-* Copy the **Publishable Key** (starts with `pk_live_...`).
-* Reveal and copy the **Secret Key** (starts with `sk_live_...`).
-* Store this value securely in Vercel (see Section 5 below).
-
-### Action 1.3: Configure Production Webhook Endpoint
-* In Stripe Dashboard, navigate to **Developers > Webhooks**.
-* Click **Add Endpoint**.
-* **Endpoint URL:** `https://offdahook.vercel.app/api/webhook`
-* **Events to listen for:** Select `checkout.session.completed` and `charge.refunded`.
-* Click **Add endpoint**.
-* In the created webhook view, reveal the **Signing Secret** (starts with `whsec_...`).
-* Set `STRIPE_WEBHOOK_SECRET` in Vercel.
+| Blocker ID | Missing Item | Why Required | Affected Feature | Responsible Party | Required Next Step | Severity | Status |
+| :---: | :--- | :--- | :--- | :---: | :--- | :---: | :---: |
+| **BLK-01** | Supabase Migration Execution | Deploys RLS, atomic procedure `process_paid_order_atomic`, and constraints. | Database security, inventory concurrency, orders persistence. | Developer / Ops | Run updated `schema.sql` in Supabase SQL Editor. | **CRITICAL** | **PENDING EXECUTION** |
+| **BLK-02** | Stripe Secret Key | Required to authenticate Stripe API and create Checkout Sessions. | Storefront checkout pipeline (`/api/checkout`, `/api/verify-session`). | Developer / Shawnese | Add `STRIPE_SECRET_KEY` (`sk_test_...` or `sk_live_...`) to Vercel. | **CRITICAL** | **PENDING INPUT** |
+| **BLK-03** | Stripe Webhook Secret | Required to cryptographically verify HMAC-SHA256 signatures on incoming webhooks. | Order persistence and inventory deduction (`/api/webhook`). | Developer / Shawnese | Add endpoint in Stripe (`/api/webhook`); copy `whsec_...` to Vercel. | **CRITICAL** | **PENDING INPUT** |
+| **BLK-04** | Admin Master Passcode | Required to generate cryptographically signed HMAC session tokens for dashboard. | Admin Dashboard authentication & inventory management (`/api/auth`, `/api/orders`). | Shawnese Parker | Define `ADMIN_PIN` in Vercel (e.g. high-entropy alphanumeric passcode). | **CRITICAL** | **PENDING INPUT** |
+| **BLK-05** | Resend API Key | Required to dispatch transactional confirmation receipts to customers and alerts to Shawnese. | Automated email receipts and merchant alerts (`/api/webhook`, `/api/orders`). | Developer / Shawnese | Create account at [Resend.com](https://resend.com); copy `re_...` to Vercel. | **HIGH** | **PENDING INPUT** |
+| **BLK-06** | Verified Sender Domain | Prevents order receipts from landing in spam/junk folders. | Email deliverability for `orders@offdahookhairsalon.com`. | Developer / Domain Host | Add 3 DNS records (DKIM, SPF, MX) to domain registrar. | **HIGH** | **PENDING INPUT** |
+| **BLK-07** | Merchant Notification Email | Destination address for real-time mobile order alerts. | Notifying Shawnese when orders are placed. | Shawnese Parker | Confirm preferred email (default: `offdahooksalon@gmail.com`). Set in Vercel. | **MEDIUM** | **RESOLVED BY DEFAULT** |
 
 ---
 
-## 2. TRANSACTIONAL EMAIL INTEGRATION (RESEND)
+## 2. DETAILED STEP-BY-STEP HUMAN ACTION GUIDE
 
-Customers must receive an immediate, branded order confirmation receipt when they pay, and Shawnese must receive an instant alert on her phone to package the order.
+### Action 1: Execute Idempotent Database Migration (`schema.sql`)
+1. Log into Supabase Dashboard: `https://supabase.com/dashboard/project/xtdoqeoaflhvdduygndr`
+2. Click **SQL Editor** on the left menu.
+3. Click **New Query**.
+4. Copy the entire contents of the hardened [`schema.sql`](file:///Users/macos/Downloads/offdahook/schema.sql) file.
+5. Click **Run**.
+6. **Safety Verification:** The script is completely non-destructive:
+   - Uses `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` (preserves existing orders).
+   - Uses `ON CONFLICT (id) DO NOTHING` for products (preserves existing custom stock/pricing).
+   - Deploys RLS policies and the unified procedure `process_paid_order_atomic`.
 
-### Action 2.1: Create Resend Account
-* Register an account at `https://resend.com` (free tier includes 3,000 emails/month, more than enough for retail launch).
+### Action 2: Configure Vercel Production Environment Variables
+Navigate to **Vercel Dashboard > offdahook > Settings > Environment Variables** and ensure the following keys are defined:
 
-### Action 2.2: Verify Custom Domain
-* Under **Domains**, add `offdahookhairsalon.com` (or your active salon domain).
-* Add the 3 provided DNS records (DKIM, SPF, MX) to your domain registrar (GoDaddy, Namecheap, Google Domains, or Cloudflare).
-* Wait for DNS verification status to turn green (**Verified**).
+```bash
+# 1. Stripe Payment Gateway
+STRIPE_SECRET_KEY=sk_test_... (or sk_live_...)
+STRIPE_WEBHOOK_SECRET=whsec_...
 
-### Action 2.3: Generate API Key
-* Navigate to **API Keys > Create API Key**.
-* Name: `Off Da Hook Production E-Commerce`.
-* Permission: Full Access.
-* Copy the generated key (starts with `re_...`).
-* Set `RESEND_API_KEY` in Vercel.
+# 2. Supabase Cloud Database (REST Engine)
+SUPABASE_URL=https://xtdoqeoaflhvdduygndr.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_prs...
 
-### Action 2.4: Specify Notification Recipient Email
-* Decide Shawnese's designated email for fulfillment alerts (e.g., `offdahooksalon@gmail.com` or `shawnese@offdahookhairsalon.com`).
-* Set `MERCHANT_ALERT_EMAIL` in Vercel.
+# 3. Administrative Security
+ADMIN_PIN=<chosen_secure_passcode>
 
----
+# 4. Transactional Email Pipeline (Resend)
+RESEND_API_KEY=re_...
+MERCHANT_ALERT_EMAIL=offdahooksalon@gmail.com
+```
 
-## 3. SUPABASE DATABASE SCHEMA MIGRATION
-
-To enforce Row Level Security (preventing anyone on the internet from reading customer addresses or altering prices) and enable race-condition-free inventory deduction:
-
-### Action 3.1: Run Hardened Migration Script
-* Log into Supabase (`https://supabase.com/dashboard/project/xtdoqeoaflhvdduygndr`).
-* Click **SQL Editor** on the left navigation.
-* Click **New Query**.
-* Open the updated [`schema.sql`](file:///Users/macos/Downloads/offdahook/schema.sql) file from this repository.
-* Copy and paste the entire script into the Supabase SQL editor.
-* Click **Run**.
-* Verify that tables (`products`, `orders`, `webhook_events`), constraints, RLS policies, and the stored procedure `deduct_product_stock_atomic` are successfully applied.
-
----
-
-## 4. ADMIN DASHBOARD CREDENTIAL ROTATION
-
-The default PIN `offdahook2026` was previously disclosed in the audit and must be decommissioned immediately.
-
-### Action 4.1: Choose a Strong Admin Passcode
-* Select a private, high-entropy 8 to 16 character alphanumeric passcode known only to Shawnese Parker (e.g., `ODH#Crown2026!`).
-* Set `ADMIN_PIN` in Vercel Environment Variables.
-* Never commit this passcode to Git.
+### Action 3: Register Stripe Webhook Endpoint
+1. Go to **Stripe Dashboard > Developers > Webhooks**.
+2. Click **Add endpoint**.
+3. **Endpoint URL:** `https://offdahook.vercel.app/api/webhook`
+4. **Events to listen for:** `checkout.session.completed` and `charge.refunded`.
+5. Reveal **Signing Secret** (`whsec_...`) and paste into Vercel.
 
 ---
 
-## 5. COMPLETE VERCEL ENVIRONMENT VARIABLE CHECKLIST
+## 3. SUMMARY OF HUMAN OPERATIONAL DECISIONS
 
-Go to **Vercel Dashboard > offdahook project > Settings > Environment Variables** and ensure each of the following variables is defined for **Production** and **Preview**:
-
-| Variable Name | Required | Description | Example / Format |
-| :--- | :---: | :--- | :--- |
-| `STRIPE_SECRET_KEY` | **YES** | Live or Test Stripe Secret Key | `sk_live_...` (or `sk_test_...`) |
-| `STRIPE_WEBHOOK_SECRET` | **YES** | Webhook Cryptographic Signing Secret | `whsec_...` |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional | Stripe Publishable Key | `pk_live_...` |
-| `SUPABASE_URL` | **YES** | Supabase REST URL | `https://xtdoqeoaflhvdduygndr.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | **YES** | Supabase Service Role Secret Key | `sb_secret_prs...` (from dashboard) |
-| `ADMIN_PIN` | **YES** | Private Admin Dashboard Passcode | User-chosen secure passphrase |
-| `RESEND_API_KEY` | **YES** | Resend Transactional Email Key | `re_...` |
-| `MERCHANT_ALERT_EMAIL` | **YES** | Notification recipient for salon orders | `offdahooksalon@gmail.com` |
-
----
-
-## 6. BUSINESS & FULFILLMENT DECISIONS FOR SHAWNESE
-
-Before going live to real customers, Shawnese Parker must confirm the following operational parameters:
-
-1. **Shipping Fees:**
-   * Standard Flat Rate: e.g., `$6.95 Flat Rate Shipping across the US`.
-   * Free Shipping Threshold: e.g., `Free shipping on all orders over $75.00`.
-   * Or Real-time carrier calculation.
-2. **Fulfillment Courier:**
-   * Will packages be shipped via USPS Ground Advantage / Priority Mail, UPS Ground, or FedEx?
-3. **Cosmetic Return Policy:**
-   * Because hair care serums, butters, and spritsers are personal hygiene products, the standard industry policy is: *All sales are final once packaging seals are opened, except for damaged-in-transit claims reported within 48 hours.*
-   * This must be hyperlinked on the checkout and shop pages.
-4. **PayPal Decision:**
-   * Either register a PayPal Business Developer App to provide real PayPal checkout, OR remove the "PayPal" badge and offer 100% Stripe (which natively supports credit cards, debit cards, Apple Pay, Google Pay, and Cash App Pay).
-
+1. **Shipping Carrier & Fulfillment:**
+   - Confirm that Shawnese fulfills orders manually via **USPS Ground Advantage / Priority Mail** or **UPS Ground**.
+   - Flat rate shipping is pre-configured at **$6.95** in Stripe Checkout.
+2. **Cosmetic Hygiene Policy:**
+   - Standard retail cosmetic return policy applies: *All sales are final once safety seal is broken, except for transit damage claims submitted within 48 hours.*
+3. **PayPal Decision:**
+   - Storefront and admin dashboard now reflect **100% genuine Stripe processing** (Visa, Mastercard, Amex, Apple Pay, Google Pay). Non-existent PayPal labels have been removed.

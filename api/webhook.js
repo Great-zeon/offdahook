@@ -1,6 +1,6 @@
 // ========================================================================
 // OFF DA HOOK SALON SUITES - HARDENED STRIPE WEBHOOK HANDLER
-// Vercel Serverless Function with Raw Body Buffering & Idempotency
+// Vercel Serverless Function with Raw Body Buffering & Atomic Transactions
 // ========================================================================
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
@@ -33,7 +33,7 @@ function getRawBody(req) {
 
 // Helper: Send Transactional Email via Resend REST API
 async function sendEmailNotification(to, subject, htmlContent) {
-  if (!process.env.RESEND_API_KEY) return;
+  if (!process.env.RESEND_API_KEY) return false;
 
   const payload = JSON.stringify({
     from: 'Off Da Hook Salon Suites <orders@offdahookhairsalon.com>',
@@ -54,18 +54,13 @@ async function sendEmailNotification(to, subject, htmlContent) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          console.log(`Email dispatched to ${to}`);
-        } else {
-          console.error(`Resend API error (${res.statusCode}):`, data);
-        }
-        resolve();
+        resolve(res.statusCode >= 200 && res.statusCode < 300);
       });
     });
 
     req.on('error', (err) => {
       console.error('Failed to send email via Resend:', err.message);
-      resolve();
+      resolve(false);
     });
 
     req.write(payload);
@@ -105,32 +100,7 @@ const handler = async (req, res) => {
         return res.status(500).json({ error: 'Database connection unavailable' });
       }
 
-      // 1. Idempotency Check: Verify if session was already processed
-      const { data: existingOrder } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('stripe_session_id', session.id)
-        .maybeSingle();
-
-      if (existingOrder) {
-        console.log(`Idempotency defense: Order for session ${session.id} already exists (${existingOrder.id}).`);
-        return res.status(200).json({ received: true, message: 'Event already processed' });
-      }
-
-      // Check webhook_events table if available
-      try {
-        const { data: existingEvent } = await supabase
-          .from('webhook_events')
-          .select('id')
-          .eq('id', event.id)
-          .maybeSingle();
-
-        if (existingEvent) {
-          return res.status(200).json({ received: true, message: 'Event ID already logged' });
-        }
-      } catch (e) {}
-
-      // 2. Extract Customer & Shipping Information
+      // 1. Extract Customer & Shipping Information
       const customerName = session.customer_details?.name || 'Valued Crown Client';
       const customerEmail = session.customer_details?.email || session.customer_email || '';
       const customerPhone = session.customer_details?.phone || '';
@@ -152,79 +122,96 @@ const handler = async (req, res) => {
         }
       }
 
-      // 3. Insert Verified Order Record
-      const { error: orderError } = await supabase.from('orders').insert([{
-        id: orderId,
-        stripe_session_id: session.id,
-        customer_name: customerName,
-        customer_email: customerEmail,
-        customer_phone: customerPhone,
-        shipping_address: shippingAddress,
-        items: items,
-        subtotal: subtotalAmount,
-        total_amount: totalAmount,
-        payment_status: 'Paid',
-        payment_method: 'Stripe',
-        fulfillment_status: 'Pending',
-        created_at: new Date().toISOString()
-      }]);
+      // 2. Execute Unified Atomic Order & Inventory Transaction
+      let txSuccess = false;
+      let effectiveOrderId = orderId;
 
-      if (orderError) {
-        console.error('Failed to insert order into Supabase:', orderError);
-        throw orderError;
-      }
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('process_paid_order_atomic', {
+          p_order: {
+            id: orderId,
+            stripe_session_id: session.id,
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone,
+            shipping_address: shippingAddress,
+            subtotal: subtotalAmount,
+            total_amount: totalAmount,
+            payment_method: 'Stripe'
+          },
+          p_items: items,
+          p_event_id: event.id
+        });
 
-      // 4. Atomic Inventory Deduction
-      for (const item of items) {
-        if (item.id) {
-          const qty = parseInt(item.qty, 10) || 1;
-          
-          // Attempt atomic procedure first
-          let deducted = false;
-          try {
-            const { data: rpcResult, error: rpcErr } = await supabase.rpc('deduct_product_stock_atomic', {
-              p_id: item.id,
-              p_quantity: qty
-            });
-            if (!rpcErr && rpcResult === true) {
-              deducted = true;
-            }
-          } catch (rpcEx) {}
-
-          // Fallback conditional decrement if RPC is not yet created
-          if (!deducted) {
-            const { data: prod } = await supabase
-              .from('products')
-              .select('stock')
-              .eq('id', item.id)
-              .single();
-
-            if (prod) {
-              const newStock = Math.max(0, prod.stock - qty);
-              await supabase
-                .from('products')
-                .update({ stock: newStock, updated_at: new Date().toISOString() })
-                .eq('id', item.id);
-            }
+        if (!rpcError && rpcData) {
+          if (rpcData.duplicate === true) {
+            console.log(`Idempotency defense: Event ${event.id} or session ${session.id} already processed.`);
+            return res.status(200).json({ received: true, message: 'Event already processed' });
+          }
+          if (rpcData.success === true) {
+            txSuccess = true;
+            if (rpcData.order_id) effectiveOrderId = rpcData.order_id;
           }
         }
+      } catch (rpcEx) {
+        console.warn('RPC process_paid_order_atomic fallback required:', rpcEx.message);
       }
 
-      // 5. Record Webhook Event for Idempotency Log
-      try {
-        await supabase.from('webhook_events').insert([{
-          id: event.id,
-          event_type: event.type,
-          processed_at: new Date().toISOString()
-        }]);
-      } catch (e) {}
+      // 3. Fallback Sequential Insertion if Stored Procedure is not yet deployed
+      if (!txSuccess) {
+        // Idempotency check on orders
+        const { data: existing } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('stripe_session_id', session.id)
+          .maybeSingle();
 
-      // 6. Dispatch Branded Customer Receipt & Merchant Alert
+        if (existing) {
+          console.log(`Idempotency defense: Order already exists for session ${session.id} (${existing.id}).`);
+          return res.status(200).json({ received: true, message: 'Event already processed' });
+        }
+
+        // Insert order
+        const { error: insertErr } = await supabase.from('orders').insert([{
+          id: orderId,
+          stripe_session_id: session.id,
+          customer_name: customerName,
+          customer_email: customerEmail,
+          customer_phone: customerPhone,
+          shipping_address: shippingAddress,
+          items: items,
+          subtotal: subtotalAmount,
+          total_amount: totalAmount,
+          payment_status: 'Paid',
+          payment_method: 'Stripe',
+          fulfillment_status: 'Pending',
+          created_at: new Date().toISOString()
+        }]);
+
+        if (insertErr) throw insertErr;
+
+        // Deduct inventory
+        for (const item of items) {
+          if (item.id) {
+            const qty = parseInt(item.qty, 10) || 1;
+            try {
+              await supabase.rpc('deduct_product_stock_atomic', { p_id: item.id, p_quantity: qty });
+            } catch (e) {}
+          }
+        }
+
+        try {
+          await supabase.from('webhook_events').insert([{ id: event.id, event_type: event.type }]);
+        } catch (e) {}
+      }
+
+      // 4. Dispatch Branded Customer Receipt & Merchant Alert
+      let emailSuccess = false;
       if (customerEmail) {
         const itemsHtml = items.map(i => `
           <tr>
-            <td style="padding:8px 0; border-bottom:1px solid #2A2536; color:#FFFFFF;">${i.title} &times; ${i.qty}</td>
-            <td style="padding:8px 0; border-bottom:1px solid #2A2536; text-align:right; color:#FF539B; font-weight:bold;">$${(i.price * i.qty).toFixed(2)}</td>
+            <td style="padding:8px 0; border-bottom:1px solid #2A2536; color:#FFFFFF;">${i.title} &times; ${i.qty || 1}</td>
+            <td style="padding:8px 0; border-bottom:1px solid #2A2536; text-align:right; color:#FF539B; font-weight:bold;">$${((i.price || 0) * (i.qty || 1)).toFixed(2)}</td>
           </tr>
         `).join('');
 
@@ -239,7 +226,7 @@ const handler = async (req, res) => {
               <p style="color:#A39EB2; font-size:12px; margin-top:4px;">Rosedale, NY • Phenix Salon Suites Suite #192</p>
             </div>
             <div style="background:#1B1526; border:1px solid #362E48; border-radius:8px; padding:20px; margin-bottom:20px;">
-              <h2 style="color:#FFFFFF; margin-top:0; font-size:18px;">Crown Order Confirmed: ${orderId}</h2>
+              <h2 style="color:#FFFFFF; margin-top:0; font-size:18px;">Crown Order Confirmed: ${effectiveOrderId}</h2>
               <p style="font-size:14px; line-height:1.6; color:#C5C0D4;">Thank you, ${customerName}! Your signature hair care order has been verified and is being prepared with utmost care by Master Stylist Shawnese Parker.</p>
               <table style="width:100%; border-collapse:collapse; margin-top:16px; font-size:14px;">
                 <thead>
@@ -270,23 +257,29 @@ const handler = async (req, res) => {
           </div>
         `;
 
-        await sendEmailNotification(
+        emailSuccess = await sendEmailNotification(
           customerEmail,
-          `Crown Order Confirmed: ${orderId} — Off Da Hook Salon Suites`,
+          `Crown Order Confirmed: ${effectiveOrderId} — Off Da Hook Salon Suites`,
           receiptHtml
         );
+
+        if (emailSuccess) {
+          try {
+            await supabase.from('orders').update({ email_receipt_sent: true }).eq('id', effectiveOrderId);
+          } catch (e) {}
+        }
 
         // Merchant Alert to Shawnese
         const merchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
         const merchantHtml = `
           <div style="font-family:sans-serif; padding:20px; color:#222;">
-            <h2>🎉 New Crown Order Received: ${orderId}</h2>
+            <h2>🎉 New Crown Order Received: ${effectiveOrderId}</h2>
             <p><strong>Customer:</strong> ${customerName} (${customerEmail}, ${customerPhone})</p>
             <p><strong>Total:</strong> $${totalAmount.toFixed(2)}</p>
             <p><strong>Shipping Address:</strong><br>${formattedAddress}</p>
             <h3>Items to Fulfill:</h3>
             <ul>
-              ${items.map(i => `<li>${i.title} &times; ${i.qty}</li>`).join('')}
+              ${items.map(i => `<li>${i.title} &times; ${i.qty || 1}</li>`).join('')}
             </ul>
             <p><a href="https://offdahook.vercel.app/admin.html" style="background:#FF539B; color:#fff; padding:10px 16px; text-decoration:none; border-radius:4px;">Open Admin Dashboard</a></p>
           </div>
@@ -294,13 +287,13 @@ const handler = async (req, res) => {
 
         await sendEmailNotification(
           merchantEmail,
-          `📦 New Order to Fulfill: ${orderId} ($${totalAmount.toFixed(2)})`,
+          `📦 New Order to Fulfill: ${effectiveOrderId} ($${totalAmount.toFixed(2)})`,
           merchantHtml
         );
       }
 
-      console.log(`Order ${orderId} successfully logged for ${customerEmail} ($${totalAmount})`);
-      return res.status(200).json({ received: true, orderId: orderId });
+      console.log(`Order ${effectiveOrderId} successfully processed for ${customerEmail} ($${totalAmount})`);
+      return res.status(200).json({ received: true, orderId: effectiveOrderId });
     } catch (err) {
       console.error('Error processing order in webhook:', err);
       return res.status(500).json({ error: 'Failed to process order' });
