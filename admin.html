@@ -715,7 +715,7 @@
     <section id="ordersTab" class="admin-tab-content" style="display: none;">
       <div class="admin-action-bar">
         <div style="font-size: 13.5px; color: #A39EB2;">
-          Customer orders processed via Stripe and PayPal. Order receipts are automatically sent to the customer's email upon payment.
+          Customer orders verified via Stripe (Card, Apple Pay, Google Pay). Automated receipts are dispatched upon verified payment.
         </div>
       </div>
 
@@ -746,9 +746,9 @@
       <div style="max-width: 680px; display: flex; flex-direction: column; gap: 24px;">
 
         <div class="admin-metric-card">
-          <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 8px;">Stripe &amp; PayPal Payments</h3>
+          <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 8px;">Stripe Payment Gateway</h3>
           <p style="font-size: 13px; color: #A39EB2; line-height: 1.6; margin-bottom: 16px;">
-            Your store is configured to accept Visa, Mastercard, Amex, Apple Pay, Google Pay, and PayPal through Stripe Checkout. Order receipts are dispatched automatically to client inboxes upon payment.
+            Your store is configured to accept Visa, Mastercard, Amex, Discover, Apple Pay, and Google Pay through Stripe Hosted Checkout. Order receipts are dispatched automatically to client inboxes upon payment.
           </p>
           <div class="admin-input-group">
             <label>Stripe Publishable Key (Client)</label>
@@ -856,8 +856,7 @@
       const STORAGE_KEY_PRODUCTS = 'odh_inventory_v1';
       const STORAGE_KEY_ORDERS = 'odh_orders_v1';
       const STORAGE_KEY_AUTH = 'odh_admin_auth';
-      const STORAGE_KEY_PIN = 'odh_admin_pin';
-      const DEFAULT_PIN = 'offdahook2026';
+      const STORAGE_KEY_TOKEN = 'odh_admin_token';
 
       // Default seed catalog of Off Da Hook's 12 products
       const SEED_PRODUCTS = [
@@ -995,39 +994,6 @@
         }
       ];
 
-      // Sample Seed Orders for Demonstrating the Dashboard
-      const SEED_ORDERS = [
-        {
-          id: 'ODH-1042',
-          date: '2026-11-05 14:22',
-          customerName: 'Maya Jenkins',
-          customerEmail: 'm.jenkins@gmail.com',
-          customerPhone: '(917) 555-0142',
-          shippingAddress: '142-18 243rd St, Rosedale, NY 11422',
-          items: [
-            { title: 'Xxxtra Strength Regrowth Serum', variant: 'Small 4oz', quantity: 2, price: 25.00 },
-            { title: 'ICY Edge Glaze', variant: 'Crystal Clear', quantity: 1, price: 20.00 }
-          ],
-          totalAmount: 70.00,
-          paymentStatus: 'Paid (Stripe)',
-          fulfillmentStatus: 'Shipped'
-        },
-        {
-          id: 'ODH-1043',
-          date: '2026-11-06 09:15',
-          customerName: 'Danielle Brooks',
-          customerEmail: 'danielle.b@yahoo.com',
-          customerPhone: '(347) 555-8831',
-          shippingAddress: '350 Ocean Ave, Brooklyn, NY 11226',
-          items: [
-            { title: 'Loc Buffet Bundle Package', variant: 'Complete 5-Piece Set', quantity: 1, price: 99.99 }
-          ],
-          totalAmount: 99.99,
-          paymentStatus: 'Paid (PayPal)',
-          fulfillmentStatus: 'Pending'
-        }
-      ];
-
       // Inventory Data Management
       function getProducts() {
         const stored = localStorage.getItem(STORAGE_KEY_PRODUCTS);
@@ -1040,13 +1006,13 @@
 
       async function syncProductToCloud(product) {
         if (!window.location.protocol.startsWith('http')) return;
-        const currentPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+        const currentToken = sessionStorage.getItem(STORAGE_KEY_TOKEN) || '';
         try {
           await fetch('/api/products', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              'x-admin-pin': currentPin
+              'Authorization': `Bearer ${currentToken}`
             },
             body: JSON.stringify({
               id: product.id,
@@ -1054,8 +1020,7 @@
               price: product.numericPrice || parseFloat((product.price || '0').replace(/[^0-9.]/g, '')),
               title: product.title,
               category: product.category,
-              description: product.description,
-              pin: currentPin
+              description: product.description
             })
           });
         } catch (e) {}
@@ -1076,41 +1041,41 @@
         if (stored) {
           try { return JSON.parse(stored); } catch (e) {}
         }
-        localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(SEED_ORDERS));
-        return SEED_ORDERS;
+        return [];
       }
 
-      async function syncOrderStatusToCloud(orderId, status) {
+      async function syncOrderStatusToCloud(orderId, status, carrier = null, trackingNumber = null) {
         if (!window.location.protocol.startsWith('http')) return;
-        const currentPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+        const currentToken = sessionStorage.getItem(STORAGE_KEY_TOKEN) || '';
         try {
           await fetch('/api/orders', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              'x-admin-pin': currentPin
+              'Authorization': `Bearer ${currentToken}`
             },
             body: JSON.stringify({
               id: orderId,
               fulfillment_status: status,
-              pin: currentPin
+              carrier: carrier,
+              tracking_number: trackingNumber
             })
           });
         } catch (e) {}
       }
 
-      function saveOrders(orders, updatedOrderId = null, newStatus = null) {
+      function saveOrders(orders, updatedOrderId = null, newStatus = null, carrier = null, trackingNumber = null) {
         localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
         updateMetrics();
         renderOrders();
         if (updatedOrderId && newStatus) {
-          syncOrderStatusToCloud(updatedOrderId, newStatus);
+          syncOrderStatusToCloud(updatedOrderId, newStatus, carrier, trackingNumber);
         }
       }
 
       async function syncCloudBackend() {
         if (!window.location.protocol.startsWith('http')) return;
-        const currentPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+        const currentToken = sessionStorage.getItem(STORAGE_KEY_TOKEN) || '';
 
         try {
           const prodRes = await fetch('/api/products');
@@ -1124,19 +1089,21 @@
           }
         } catch (e) {}
 
-        try {
-          const ordRes = await fetch(`/api/orders?pin=${encodeURIComponent(currentPin)}`, {
-            headers: { 'x-admin-pin': currentPin }
-          });
-          if (ordRes.ok) {
-            const data = await ordRes.json();
-            if (data && data.success && Array.isArray(data.orders)) {
-              localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(data.orders));
-              updateMetrics();
-              renderOrders();
+        if (currentToken) {
+          try {
+            const ordRes = await fetch('/api/orders', {
+              headers: { 'Authorization': `Bearer ${currentToken}` }
+            });
+            if (ordRes.ok) {
+              const data = await ordRes.json();
+              if (data && data.success && Array.isArray(data.orders)) {
+                localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(data.orders));
+                updateMetrics();
+                renderOrders();
+              }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
       }
 
       function showToast(msg) {
@@ -1169,17 +1136,34 @@
         }
       }
 
-      loginForm.addEventListener('submit', (e) => {
+      loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const storedPin = localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
-        if (pinInput.value === storedPin) {
-          sessionStorage.setItem(STORAGE_KEY_AUTH, 'true');
-          loginError.style.display = 'none';
-          pinInput.value = '';
-          checkAuth();
-        } else {
-          loginError.style.display = 'block';
+        const enteredPin = pinInput.value.trim();
+        loginError.style.display = 'none';
+
+        if (!enteredPin) return;
+
+        // Verify admin passcode against backend server
+        if (window.location.protocol.startsWith('http')) {
+          try {
+            const verifyRes = await fetch('/api/orders', {
+              headers: { 'Authorization': `Bearer ${enteredPin}` }
+            });
+
+            if (verifyRes.status === 401) {
+              loginError.textContent = 'Invalid Admin Passcode. Access denied.';
+              loginError.style.display = 'block';
+              return;
+            }
+          } catch (err) {
+            console.warn('Network validation check bypassed:', err);
+          }
         }
+
+        sessionStorage.setItem(STORAGE_KEY_TOKEN, enteredPin);
+        sessionStorage.setItem(STORAGE_KEY_AUTH, 'true');
+        pinInput.value = '';
+        checkAuth();
       });
 
       logoutBtn.addEventListener('click', () => {
@@ -1421,28 +1405,35 @@
         tbody.innerHTML = '';
 
         if (orders.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#8E8A9F;">No customer orders placed yet.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#8E8A9F;">No customer orders placed yet. Live verified orders will appear here automatically.</td></tr>';
           return;
         }
 
         orders.forEach(order => {
-          const isShipped = order.fulfillmentStatus === 'Shipped';
-          const itemsSummary = (order.items || []).map(i => `${i.quantity}x ${i.title}`).join(', ');
+          const fulfillment = order.fulfillment_status || order.fulfillmentStatus || 'Pending';
+          const isShipped = fulfillment === 'Shipped';
+          const customerName = order.customer_name || order.customerName || 'Crown Client';
+          const customerEmail = order.customer_email || order.customerEmail || '';
+          const total = parseFloat(order.total_amount || order.totalAmount || 0);
+          const orderDate = (order.created_at || order.date || '').replace('T', ' ').substring(0, 16);
+          const itemsSummary = (order.items || []).map(i => `${i.qty || i.quantity || 1}x ${i.title}`).join(', ');
+          const trackingInfo = order.tracking_number ? `<div style="font-size:11px; color:#34D399; margin-top:3px;">${order.carrier || 'Tracking'}: ${order.tracking_number}</div>` : '';
 
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td><strong style="color:var(--admin-pink-light);">${order.id}</strong></td>
-            <td style="color:#9C97AA; font-size:12px;">${order.date}</td>
+            <td style="color:#9C97AA; font-size:12px;">${orderDate}</td>
             <td>
-              <div><strong>${order.customerName}</strong></div>
-              <div style="font-size:11.5px; color:#8E8A9F;">${order.customerEmail}</div>
+              <div><strong>${customerName}</strong></div>
+              <div style="font-size:11.5px; color:#8E8A9F;">${customerEmail}</div>
             </td>
             <td style="max-width:260px; font-size:12.5px;">${itemsSummary || 'Signature Products'}</td>
-            <td><strong>$${(order.totalAmount || 0).toFixed(2)}</strong></td>
+            <td><strong>$${total.toFixed(2)}</strong></td>
             <td>
               <button type="button" class="status-badge ${isShipped ? 'shipped' : 'pending'} toggle-ship-btn" data-id="${order.id}" style="cursor:pointer; border-radius:4px;">
                 ${isShipped ? '✓ Shipped' : 'Pending'}
               </button>
+              ${trackingInfo}
             </td>
             <td style="text-align: right;">
               <button type="button" class="admin-btn-secondary view-receipt-btn" data-id="${order.id}">View Receipt</button>
@@ -1451,16 +1442,29 @@
           tbody.appendChild(tr);
         });
 
-        // Toggle shipment status
+        // Toggle shipment status & collect tracking details
         tbody.querySelectorAll('.toggle-ship-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             const id = btn.getAttribute('data-id');
             const orders = getOrders();
             const order = orders.find(o => o.id === id);
-            if (order) {
-              order.fulfillmentStatus = order.fulfillmentStatus === 'Shipped' ? 'Pending' : 'Shipped';
-              saveOrders(orders);
-              showToast(`Order ${order.id} marked as ${order.fulfillmentStatus}`);
+            if (!order) return;
+
+            const currentStatus = order.fulfillment_status || order.fulfillmentStatus || 'Pending';
+            if (currentStatus !== 'Shipped') {
+              const carrier = prompt('Enter Shipping Carrier (e.g. USPS Ground Advantage, UPS, FedEx):', order.carrier || 'USPS Ground Advantage');
+              const trackingNumber = prompt('Enter Tracking Number (optional):', order.tracking_number || '');
+              order.fulfillment_status = 'Shipped';
+              order.fulfillmentStatus = 'Shipped';
+              if (carrier) order.carrier = carrier;
+              if (trackingNumber) order.tracking_number = trackingNumber;
+              saveOrders(orders, id, 'Shipped', carrier, trackingNumber);
+              showToast(`Order ${id} marked as Shipped`);
+            } else {
+              order.fulfillment_status = 'Pending';
+              order.fulfillmentStatus = 'Pending';
+              saveOrders(orders, id, 'Pending');
+              showToast(`Order ${id} reset to Pending`);
             }
           });
         });
@@ -1484,16 +1488,41 @@
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
 
+        const customerName = order.customer_name || order.customerName || 'Crown Client';
+        const customerEmail = order.customer_email || order.customerEmail || '';
+        const customerPhone = order.customer_phone || order.customerPhone || '';
+        const total = parseFloat(order.total_amount || order.totalAmount || 0);
+        const orderDate = (order.created_at || order.date || '').replace('T', ' ').substring(0, 16);
+        const paymentStatus = order.payment_status || order.paymentStatus || 'Paid (Stripe)';
+
+        let formattedAddress = 'Store Pickup / On File';
+        if (typeof order.shipping_address === 'object' && order.shipping_address !== null) {
+          const sa = order.shipping_address;
+          formattedAddress = sa.line1 ? `${sa.line1}${sa.line2 ? ', ' + sa.line2 : ''}, ${sa.city || ''}, ${sa.state || ''} ${sa.postal_code || ''}` : JSON.stringify(sa);
+        } else if (order.shippingAddress) {
+          formattedAddress = order.shippingAddress;
+        }
+
         const container = document.getElementById('receiptContent');
-        const itemsHtml = (order.items || []).map(item => `
-          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
-            <div>
-              <strong>${item.title}</strong>
-              <div style="font-size:11.5px; color:#8E8A9F;">Qty: ${item.quantity} ${item.variant ? '• ' + item.variant : ''}</div>
+        const itemsHtml = (order.items || []).map(item => {
+          const qty = item.qty || item.quantity || 1;
+          const price = parseFloat(item.price || 0);
+          return `
+            <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+              <div>
+                <strong>${item.title}</strong>
+                <div style="font-size:11.5px; color:#8E8A9F;">Qty: ${qty} ${item.variant ? '• ' + item.variant : ''}</div>
+              </div>
+              <strong>$${(price * qty).toFixed(2)}</strong>
             </div>
-            <strong>$${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</strong>
+          `;
+        }).join('');
+
+        const trackingSection = order.tracking_number ? `
+          <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3); border-radius:6px; padding:10px; margin-bottom:14px; font-size:12px; color:#34D399;">
+            <strong>Shipment Courier:</strong> ${order.carrier || 'USPS'} • <strong>Tracking Number:</strong> ${order.tracking_number}
           </div>
-        `).join('');
+        ` : '';
 
         container.innerHTML = `
           <div style="text-align:center; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:16px;">
@@ -1505,18 +1534,20 @@
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Billed &amp; Shipped To:</div>
-              <div><strong>${order.customerName}</strong></div>
-              <div style="font-size:12px; color:#C2BFD0;">${order.shippingAddress || 'Store Pickup'}</div>
-              <div style="font-size:12px; color:#C2BFD0;">${order.customerEmail}</div>
-              <div style="font-size:12px; color:#C2BFD0;">${order.customerPhone || ''}</div>
+              <div><strong>${customerName}</strong></div>
+              <div style="font-size:12px; color:#C2BFD0;">${formattedAddress}</div>
+              <div style="font-size:12px; color:#C2BFD0;">${customerEmail}</div>
+              <div style="font-size:12px; color:#C2BFD0;">${customerPhone}</div>
             </div>
             <div style="text-align:right;">
               <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Order Reference:</div>
               <div style="font-size:16px; font-weight:800; color:var(--admin-pink-light);">${order.id}</div>
-              <div style="font-size:12px; color:#9C97AA;">${order.date}</div>
-              <div style="font-size:12px; color:#34D399; font-weight:700; margin-top:4px;">${order.paymentStatus}</div>
+              <div style="font-size:12px; color:#9C97AA;">${orderDate}</div>
+              <div style="font-size:12px; color:#34D399; font-weight:700; margin-top:4px;">${paymentStatus}</div>
             </div>
           </div>
+
+          ${trackingSection}
 
           <div style="margin-bottom:16px;">
             <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F; margin-bottom:6px;">Purchased Formulas:</div>
@@ -1525,13 +1556,16 @@
 
           <div style="display:flex; justify-content:space-between; padding-top:8px; font-size:16px; font-weight:800;">
             <span>Total Paid (USD):</span>
-            <span style="color:var(--admin-pink-light);">$${(order.totalAmount || 0).toFixed(2)}</span>
+            <span style="color:var(--admin-pink-light);">$${total.toFixed(2)}</span>
           </div>
 
           <div style="margin-top:20px; padding:12px; background:rgba(255,255,255,0.03); border-radius:6px; font-size:11.5px; color:#8E8A9F; text-align:center;">
-            Thank you for trusting your crown to Master Stylist Shawnese Parker. An automated copy of this receipt was dispatched to ${order.customerEmail}.
+            Verified order record processed by Off Da Hook Salon Suites.
           </div>
         `;
+
+        receiptModal.classList.add('active');
+      }
 
         receiptModal.classList.add('active');
       }

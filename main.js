@@ -3040,7 +3040,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
             </button>
             <div class="cart-payment-methods">
-              <span>Visa</span> • <span>Mastercard</span> • <span>Apple Pay</span> • <span>Google Pay</span> • <span>PayPal</span>
+              <span>Visa</span> • <span>Mastercard</span> • <span>Amex</span> • <span>Apple Pay</span> • <span>Google Pay</span> • <span>Stripe Verified</span>
             </div>
           </div>
         </div>
@@ -3170,15 +3170,35 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    const CANONICAL_PRODUCT_IDS = {
+      'loc-buffet-bundle-package': 'loc-buffet-bundle-package',
+      'xxxtra-strength-regrowth-serum': 'xxxtra-strength-regrowth-serum',
+      'anti-itch-dandruff-growth-serum': 'anti-itch-dandruff-growth-serum',
+      'control-freak-edge-polish': 'control-freak-edge-polish',
+      'icy-edge-glaze': 'control-freak-edge-polish',
+      'grip-and-glide-braid-jam': 'grip-and-glide-braid-jam',
+      'aloe-rose-water-spritzer': 'aloe-rose-water-spritzer',
+      'loc-butta-sauce': 'loc-butta-sauce',
+      'citrus-quench-clarifying-shampoo': 'citrus-quench-clarifying-shampoo',
+      'citrus-quench-hydrating-conditioner': 'citrus-quench-hydrating-conditioner',
+      'off-da-hook-oil-drip-comb': 'off-da-hook-oil-drip-comb',
+      'the-children-s-line': 'the-children-s-line',
+      'perfect-paige-s-unicorn-magic-hair-system': 'the-children-s-line',
+      'fully-loaded-regrowth-system': 'fully-loaded-regrowth-system'
+    };
+
     function addToCart(product) {
       const cart = getCart();
       const existingIdx = cart.findIndex(i => i.title === product.title && i.variant === product.variant);
+
+      let rawSlug = product.id || product.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const canonicalId = CANONICAL_PRODUCT_IDS[rawSlug] || rawSlug;
 
       if (existingIdx > -1) {
         cart[existingIdx].quantity = (cart[existingIdx].quantity || 1) + 1;
       } else {
         cart.push({
-          id: product.id || product.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          id: canonicalId,
           title: product.title,
           variant: product.variant || '',
           price: parseFloat(product.price.toString().replace(/[^0-9.]/g, '')) || 25.00,
@@ -3215,9 +3235,10 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        showCheckoutModal(cart);
+        alert(data.error || 'Payment gateway is currently undergoing maintenance. Please call the salon directly at (347) 238-1602 to complete your order.');
       } catch (err) {
-        showCheckoutModal(cart);
+        console.error('Checkout error:', err);
+        alert('Network communication error. Please check your connection or contact Off Da Hook at (347) 238-1602.');
       } finally {
         if (checkoutBtn) {
           checkoutBtn.disabled = false;
@@ -3226,123 +3247,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    function showCheckoutModal(cart) {
-      closeCart();
-      let modal = document.getElementById('clientCheckoutModal');
-      if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'clientCheckoutModal';
-        modal.className = 'admin-modal-overlay';
-        modal.innerHTML = `
-          <div class="admin-modal-card" style="max-width:520px;">
-            <div class="admin-modal-title">
-              <span>Crown Order Checkout</span>
-              <button type="button" class="admin-modal-close" id="closeCheckoutModalBtn">&times;</button>
-            </div>
-            <form id="clientCheckoutForm">
-              <div style="font-size:13px; color:#A39EB2; margin-bottom:16px;">
-                Enter your details to receive an itemized order receipt and priority shipment.
-              </div>
-              <div class="admin-input-group">
-                <label>Full Name *</label>
-                <input type="text" id="custName" class="admin-input-control" required placeholder="e.g. Maya Jenkins">
-              </div>
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                <div class="admin-input-group">
-                  <label>Email (For Order Receipt) *</label>
-                  <input type="email" id="custEmail" class="admin-input-control" required placeholder="name@email.com">
-                </div>
-                <div class="admin-input-group">
-                  <label>Phone Number *</label>
-                  <input type="tel" id="custPhone" class="admin-input-control" required placeholder="(347) 238-1602">
-                </div>
-              </div>
-              <div class="admin-input-group">
-                <label>Delivery Address *</label>
-                <input type="text" id="custAddress" class="admin-input-control" required placeholder="Street address, Apt, Suite">
-              </div>
-              <div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px;">
-                <div class="admin-input-group">
-                  <label>City</label>
-                  <input type="text" id="custCity" class="admin-input-control" required placeholder="Rosedale / Queens">
-                </div>
-                <div class="admin-input-group">
-                  <label>State</label>
-                  <input type="text" id="custState" class="admin-input-control" required placeholder="NY">
-                </div>
-                <div class="admin-input-group">
-                  <label>ZIP</label>
-                  <input type="text" id="custZip" class="admin-input-control" required placeholder="11422">
-                </div>
-              </div>
-              <div id="checkoutOrderSummary" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:12px; margin:14px 0; font-size:13px;"></div>
-              <button type="submit" class="admin-btn-primary" style="width:100%; justify-content:center; padding:12px;">
-                Confirm Order &amp; Dispatch Receipt
-              </button>
-            </form>
-          </div>
-        `;
-        document.body.appendChild(modal);
+    async function checkStripePaymentReturn() {
+      if (!window.location.search) return;
+      const urlParams = new URLSearchParams(window.location.search);
+      const isOrderSuccess = urlParams.get('order') === 'success';
+      const sessionId = urlParams.get('session_id');
 
-        document.getElementById('closeCheckoutModalBtn').addEventListener('click', () => {
-          modal.classList.remove('active');
-        });
-      }
+      if (isOrderSuccess && sessionId) {
+        try {
+          const res = await fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`);
+          const data = await res.json();
 
-      const total = cart.reduce((acc, i) => acc + (parseFloat(i.price) * (i.quantity || 1)), 0);
-      const summaryEl = document.getElementById('checkoutOrderSummary');
-      summaryEl.innerHTML = `
-        <div style="display:flex; justify-content:space-between; font-weight:700;">
-          <span>${cart.length} Formula Item(s)</span>
-          <span style="color:var(--pink-primary);">$${total.toFixed(2)} USD</span>
-        </div>
-        <div style="font-size:11.5px; color:#8E8A9F; margin-top:4px;">Payment Method: Stripe / PayPal Protected</div>
-      `;
-
-      const form = document.getElementById('clientCheckoutForm');
-      form.onsubmit = function(e) {
-        e.preventDefault();
-        const name = document.getElementById('custName').value.trim();
-        const email = document.getElementById('custEmail').value.trim();
-        const phone = document.getElementById('custPhone').value.trim();
-        const address = `${document.getElementById('custAddress').value.trim()}, ${document.getElementById('custCity').value.trim()}, ${document.getElementById('custState').value.trim()} ${document.getElementById('custZip').value.trim()}`;
-
-        const orderId = `ODH-${Date.now().toString().slice(-4)}`;
-        const newOrder = {
-          id: orderId,
-          date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          customerName: name,
-          customerEmail: email,
-          customerPhone: phone,
-          shippingAddress: address,
-          items: cart,
-          totalAmount: total,
-          paymentStatus: 'Paid (Stripe / PayPal)',
-          fulfillmentStatus: 'Pending'
-        };
-
-        const orders = JSON.parse(localStorage.getItem(STORAGE_KEY_ORDERS) || '[]');
-        orders.unshift(newOrder);
-        localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
-
-        const inv = getInventory();
-        cart.forEach(cartItem => {
-          const match = inv.find(p => p.title.toLowerCase() === cartItem.title.toLowerCase() || p.id === cartItem.id);
-          if (match) {
-            match.stock = Math.max(0, (match.stock || 0) - (cartItem.quantity || 1));
+          if (data && data.success && data.verified && data.order) {
+            localStorage.removeItem(STORAGE_KEY_CART);
+            updateBadges();
+            showOrderConfirmation(data.order);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else {
+            alert('Your checkout session could not be verified by Stripe. If your card was charged, please contact the salon at (347) 238-1602.');
           }
-        });
-        saveInventory(inv);
-
-        localStorage.removeItem(STORAGE_KEY_CART);
-        updateBadges();
-
-        modal.classList.remove('active');
-        showOrderConfirmation(newOrder);
-        syncShopStock();
-      };
-
-      modal.classList.add('active');
+        } catch (e) {
+          console.error('Session verification error:', e);
+        }
+      } else if (urlParams.get('order') === 'cancelled') {
+        alert('Your checkout was cancelled. Your items have been saved in your crown bag.');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
 
     function showOrderConfirmation(order) {
@@ -3375,25 +3305,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      document.getElementById('confirmCustomerName').textContent = order.customerName;
-      document.getElementById('confirmOrderId').textContent = order.id;
+      const customerName = order.customer_name || order.customerName || 'Valued Crown Client';
+      const orderId = order.id || 'ODH-ORDER';
+      const total = parseFloat(order.total_amount || order.totalAmount || 0);
+      const shippingAddress = typeof order.shipping_address === 'string'
+        ? order.shipping_address
+        : (order.shippingAddress || 'On file with suite concierge');
 
-      const itemsHtml = (order.items || []).map(i => `
-        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-          <span>${i.quantity}x ${i.title} ${i.variant ? '(' + i.variant + ')' : ''}</span>
-          <span style="font-weight:700;">$${((parseFloat(i.price) || 0) * (i.quantity || 1)).toFixed(2)}</span>
-        </div>
-      `).join('');
+      document.getElementById('confirmCustomerName').textContent = customerName;
+      document.getElementById('confirmOrderId').textContent = orderId;
+
+      const itemsHtml = (order.items || []).map(i => {
+        const qty = i.qty || i.quantity || 1;
+        const price = parseFloat(i.price || 0);
+        return `
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span>${qty}x ${i.title} ${i.variant ? '(' + i.variant + ')' : ''}</span>
+            <span style="font-weight:700;">$${(price * qty).toFixed(2)}</span>
+          </div>
+        `;
+      }).join('');
 
       document.getElementById('confirmOrderDetails').innerHTML = `
         <div style="border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:10px; margin-bottom:10px;">
           <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Shipping Destination:</div>
-          <div style="color:#FFFFFF; font-weight:600;">${order.shippingAddress}</div>
+          <div style="color:#FFFFFF; font-weight:600;">${shippingAddress}</div>
         </div>
         ${itemsHtml}
         <div style="display:flex; justify-content:space-between; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px; margin-top:10px; font-weight:800; font-size:14.5px;">
           <span>Total Paid:</span>
-          <span style="color:var(--pink-light);">$${(order.totalAmount || 0).toFixed(2)} USD</span>
+          <span style="color:var(--pink-light);">$${total.toFixed(2)} USD</span>
         </div>
       `;
 
@@ -3498,10 +3439,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Initialize Cart and Stock
+    // Initialize Cart, Stock, and Payment Return Verification
     ensureDrawerMarkup();
     updateBadges();
     syncShopStock();
+    checkStripePaymentReturn();
 
     // Hook all navCartBtn buttons
     document.querySelectorAll('#navCartBtn, .nav-cart-btn').forEach(btn => {

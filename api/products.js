@@ -1,5 +1,5 @@
 // ========================================================================
-// OFF DA HOOK SALON SUITES - PRODUCTS & INVENTORY API (VERCEL SERVERLESS)
+// OFF DA HOOK SALON SUITES - HARDENED PRODUCTS & INVENTORY API (VERCEL SERVERLESS)
 // ========================================================================
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
@@ -17,21 +17,33 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-pin');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-pin, x-admin-key');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Helper: Verify Admin PIN for writes
+  // Helper: Secure Server-Side Authorization Verification
   const isAuthorized = () => {
-    const pin = req.headers['x-admin-pin'] || req.body?.pin;
-    const expected = process.env.ADMIN_PIN || 'offdahook2026';
-    return pin === expected;
+    const authHeader = req.headers['authorization'];
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7).trim();
+    } else {
+      token = req.headers['x-admin-key'] || req.headers['x-admin-pin'] || req.body?.pin;
+    }
+
+    const expected = process.env.ADMIN_PIN;
+    if (!expected) {
+      console.warn('SECURITY ALERT: ADMIN_PIN environment variable is not defined.');
+      return false;
+    }
+
+    return token === expected;
   };
 
   try {
-    // GET: Fetch all products with stock
+    // GET: Fetch all products with authoritative stock
     if (req.method === 'GET') {
       if (supabase) {
         const { data, error } = await supabase
@@ -39,19 +51,22 @@ module.exports = async (req, res) => {
           .select('*')
           .eq('is_active', true)
           .order('title', { ascending: true });
-        if (error) throw error;
+        
+        if (error) {
+          console.error('Supabase products fetch error:', error);
+          throw error;
+        }
         return res.status(200).json({ success: true, products: data });
       }
 
-      // Fallback to static catalog if Supabase is not yet connected
+      // Catalog file fallback if database is offline
       const filePath = path.join(process.cwd(), 'assets', 'shop', 'products.json');
       if (fs.existsSync(filePath)) {
         const fileData = fs.readFileSync(filePath, 'utf8');
         const prods = JSON.parse(fileData).map(p => ({
           id: p.id,
           title: p.title,
-          price: p.price,
-          numericPrice: parseFloat((p.price || '0').replace(/[^0-9.]/g, '')),
+          price: parseFloat((p.price || '0').replace(/[^0-9.]/g, '')),
           stock: p.stock || 12,
           category: p.category,
           volume: p.volume,
@@ -61,42 +76,43 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, products: prods });
       }
 
-      return res.status(200).json({ success: true, products: [] });
+      return res.status(503).json({ success: false, error: 'Product catalog unavailable' });
     }
 
-    // PUT: Update stock quantity or product details
+    // PUT: Update stock quantity or product details (Restricted to Admin)
     if (req.method === 'PUT') {
       if (!isAuthorized()) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin PIN' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin Credentials' });
       }
 
       const { id, stock, price, title, category, description } = req.body;
       if (!id) return res.status(400).json({ success: false, error: 'Missing product ID' });
 
-      if (supabase) {
-        const updates = { updated_at: new Date().toISOString() };
-        if (typeof stock !== 'undefined') updates.stock = parseInt(stock, 10);
-        if (typeof price !== 'undefined') updates.price = parseFloat(price);
-        if (title) updates.title = title;
-        if (category) updates.category = category;
-        if (description) updates.description = description;
-
-        const { data, error } = await supabase
-          .from('products')
-          .update(updates)
-          .eq('id', id)
-          .select();
-        if (error) throw error;
-        return res.status(200).json({ success: true, product: data[0] });
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Database service unavailable' });
       }
 
-      return res.status(200).json({ success: true, message: 'Stock updated (local mode)' });
+      const updates = { updated_at: new Date().toISOString() };
+      if (typeof stock !== 'undefined') updates.stock = Math.max(0, parseInt(stock, 10));
+      if (typeof price !== 'undefined') updates.price = Math.max(0, parseFloat(price));
+      if (title) updates.title = title;
+      if (category) updates.category = category;
+      if (description) updates.description = description;
+
+      const { data, error } = await supabase
+        .from('products')
+        .update(updates)
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
+      return res.status(200).json({ success: true, product: data[0] });
     }
 
-    // POST: Add new product
+    // POST: Add new product (Restricted to Admin)
     if (req.method === 'POST') {
       if (!isAuthorized()) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin PIN' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin Credentials' });
       }
 
       const { id, title, price, stock, category, volume, image, description } = req.body;
@@ -106,43 +122,44 @@ module.exports = async (req, res) => {
 
       const prodId = id || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('products')
-          .insert([{
-            id: prodId,
-            title,
-            price: parseFloat(price),
-            stock: parseInt(stock, 10) || 10,
-            category,
-            volume: volume || 'Standard Size',
-            image: image || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg',
-            description
-          }])
-          .select();
-        if (error) throw error;
-        return res.status(201).json({ success: true, product: data[0] });
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Database service unavailable' });
       }
 
-      return res.status(201).json({ success: true, message: 'Product created (local mode)' });
+      const { data, error } = await supabase
+        .from('products')
+        .insert([{
+          id: prodId,
+          title,
+          price: parseFloat(price),
+          stock: Math.max(0, parseInt(stock, 10) || 10),
+          category: category || 'general',
+          volume: volume || 'Standard Size',
+          image: image || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg',
+          description: description || ''
+        }])
+        .select();
+
+      if (error) throw error;
+      return res.status(201).json({ success: true, product: data[0] });
     }
 
-    // DELETE: Delete or archive product
+    // DELETE: Archive product (Restricted to Admin)
     if (req.method === 'DELETE') {
       if (!isAuthorized()) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin PIN' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid Admin Credentials' });
       }
 
       const { id } = req.body || req.query;
       if (!id) return res.status(400).json({ success: false, error: 'Missing product ID' });
 
-      if (supabase) {
-        const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
-        if (error) throw error;
-        return res.status(200).json({ success: true, message: 'Product archived' });
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Database service unavailable' });
       }
 
-      return res.status(200).json({ success: true, message: 'Product removed' });
+      const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
+      if (error) throw error;
+      return res.status(200).json({ success: true, message: 'Product archived successfully' });
     }
 
     return res.status(405).json({ success: false, error: 'Method not allowed' });
@@ -151,4 +168,3 @@ module.exports = async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
-
