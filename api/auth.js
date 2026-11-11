@@ -57,7 +57,8 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown-ip';
+  const forwarded = req.headers['x-forwarded-for'];
+  const clientIp = req.headers['x-real-ip'] || (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : null) || req.socket?.remoteAddress || 'unknown-ip';
   const masterPin = process.env.ADMIN_PIN;
 
   if (!masterPin) {

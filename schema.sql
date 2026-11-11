@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS orders (
   tracking_number TEXT,
   tracking_url TEXT,
   email_receipt_sent BOOLEAN NOT NULL DEFAULT FALSE,
+  email_status TEXT NOT NULL DEFAULT 'pending',
+  resend_id TEXT,
+  email_last_error TEXT,
+  email_sent_at TIMESTAMPTZ,
+  email_attempts INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -56,6 +61,11 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_url TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_receipt_sent BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS resend_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_last_error TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_attempts INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- Create indexes for performance and fast lookups
@@ -78,7 +88,11 @@ CREATE OR REPLACE FUNCTION process_paid_order_atomic(
   p_items JSONB,
   p_event_id TEXT
 )
-RETURNS JSONB AS $$
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 DECLARE
   v_item RECORD;
   v_stock_ok BOOLEAN := TRUE;
@@ -98,7 +112,7 @@ BEGIN
     id, stripe_session_id, customer_name, customer_email,
     customer_phone, shipping_address, items, subtotal,
     total_amount, payment_status, payment_method, fulfillment_status,
-    email_receipt_sent, created_at, updated_at
+    email_receipt_sent, email_status, created_at, updated_at
   ) VALUES (
     v_order_id,
     p_order->>'stripe_session_id',
@@ -113,6 +127,7 @@ BEGIN
     COALESCE(p_order->>'payment_method', 'Stripe'),
     'Pending',
     FALSE,
+    'pending',
     NOW(),
     NOW()
   );
@@ -151,11 +166,15 @@ EXCEPTION
       'error', SQLERRM
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Individual atomic stock deduction procedure (for standalone stock adjustments)
 CREATE OR REPLACE FUNCTION deduct_product_stock_atomic(p_id TEXT, p_quantity INTEGER)
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 DECLARE
   v_updated INTEGER;
 BEGIN
@@ -167,7 +186,7 @@ BEGIN
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   RETURN v_updated > 0;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- 5. Row Level Security (RLS) Policies
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;

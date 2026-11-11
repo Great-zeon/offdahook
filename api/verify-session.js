@@ -115,32 +115,55 @@ module.exports = async (req, res) => {
           if (!rpcError && rpcData?.success) {
             orderRecord = { id: newOrderId };
             console.log(`Self-healing reconciliation successfully created order ${newOrderId} for session ${sessionId}`);
+          } else if (rpcData?.duplicate) {
+            // Webhook arrived concurrently while verify-session was executing!
+            // Re-fetch the authoritative order from Supabase
+            console.log(`Concurrent order detected for session ${sessionId}. Retrieving authoritative order.`);
+            const { data: dupOrder } = await supabase
+              .from('orders')
+              .select('*')
+              .eq('stripe_session_id', sessionId)
+              .maybeSingle();
+            if (dupOrder) {
+              orderRecord = dupOrder;
+            }
           }
         } catch (e) {
           console.warn('Reconciliation fallback execution:', e);
         }
 
-        // Secondary fallback insert if RPC not present
+        // Secondary fallback insert only if RPC not present AND no duplicate was detected
         if (!orderRecord) {
           try {
-            const { data: inserted } = await supabase.from('orders').insert([{
-              id: newOrderId,
-              stripe_session_id: session.id,
-              customer_name: customerName,
-              customer_email: customerEmail,
-              customer_phone: customerPhone,
-              shipping_address: shipping,
-              items: items,
-              subtotal: subtotalAmount,
-              total_amount: totalAmount,
-              payment_status: 'Paid',
-              payment_method: 'Stripe',
-              fulfillment_status: 'Pending',
-              created_at: new Date().toISOString()
-            }]).select();
+            // Check once more to prevent duplicate key constraint violation
+            const { data: existingCheck } = await supabase
+              .from('orders')
+              .select('*')
+              .eq('stripe_session_id', session.id)
+              .maybeSingle();
 
-            if (inserted && inserted[0]) {
-              orderRecord = inserted[0];
+            if (existingCheck) {
+              orderRecord = existingCheck;
+            } else {
+              const { data: inserted } = await supabase.from('orders').insert([{
+                id: newOrderId,
+                stripe_session_id: session.id,
+                customer_name: customerName,
+                customer_email: customerEmail,
+                customer_phone: customerPhone,
+                shipping_address: shipping,
+                items: items,
+                subtotal: subtotalAmount,
+                total_amount: totalAmount,
+                payment_status: 'Paid',
+                payment_method: 'Stripe',
+                fulfillment_status: 'Pending',
+                created_at: new Date().toISOString()
+              }]).select();
+
+              if (inserted && inserted[0]) {
+                orderRecord = inserted[0];
+              }
             }
           } catch (insertEx) {
             console.error('Failed reconciliation insert:', insertEx);

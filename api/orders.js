@@ -16,7 +16,9 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
 
 // Helper: Dispatch Email via Resend
 async function sendResendEmail(to, subject, htmlContent) {
-  if (!process.env.RESEND_API_KEY) return false;
+  if (!process.env.RESEND_API_KEY) {
+    return { success: false, error: 'RESEND_API_KEY is not defined in environment variables' };
+  }
 
   const payload = JSON.stringify({
     from: 'Off Da Hook Salon Suites <orders@offdahookhairsalon.com>',
@@ -37,11 +39,20 @@ async function sendResendEmail(to, subject, htmlContent) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        resolve(res.statusCode >= 200 && res.statusCode < 300);
+        try {
+          const parsed = JSON.parse(data);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve({ success: true, id: parsed.id });
+          } else {
+            resolve({ success: false, error: parsed.message || `HTTP ${res.statusCode}` });
+          }
+        } catch (e) {
+          resolve({ success: res.statusCode >= 200 && res.statusCode < 300, error: data || `HTTP ${res.statusCode}` });
+        }
       });
     });
 
-    req.on('error', () => resolve(false));
+    req.on('error', (err) => resolve({ success: false, error: err.message }));
     req.write(payload);
     req.end();
   });
@@ -146,17 +157,29 @@ module.exports = async (req, res) => {
           </div>
         `;
 
-        const sent = await sendResendEmail(
+        const emailResult = await sendResendEmail(
           order.customer_email,
           `Crown Order Receipt: ${order.id} — Off Da Hook Salon Suites`,
           receiptHtml
         );
 
-        if (sent) {
-          await supabase.from('orders').update({ email_receipt_sent: true }).eq('id', id);
+        if (emailResult.success) {
+          await supabase.from('orders').update({
+            email_receipt_sent: true,
+            email_status: 'sent',
+            resend_id: emailResult.id || null,
+            email_sent_at: new Date().toISOString(),
+            email_attempts: (order.email_attempts || 0) + 1,
+            email_last_error: null
+          }).eq('id', id);
           return res.status(200).json({ success: true, message: 'Receipt dispatched successfully' });
         } else {
-          return res.status(500).json({ success: false, error: 'Email delivery failed. Verify RESEND_API_KEY in Vercel.' });
+          await supabase.from('orders').update({
+            email_status: 'failed',
+            email_last_error: emailResult.error || 'Delivery failed',
+            email_attempts: (order.email_attempts || 0) + 1
+          }).eq('id', id);
+          return res.status(500).json({ success: false, error: `Email delivery failed: ${emailResult.error || 'Unknown error'}. Verify RESEND_API_KEY in Vercel.` });
         }
       }
 
