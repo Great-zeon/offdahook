@@ -40,3 +40,4 @@ In the administrative portal (`admin.html`), if an order displays `email_status:
 2. The browser sends `PUT /api/orders` with `action: 'resend_receipt'` authorized by the HMAC session token.
 3. The server retrieves the immutable order record, renders the luxury branded HTML receipt, dispatches it to the customer via Resend, and increments `email_attempts`.
 4. **Safety Guarantee**: The resend operation does NOT modify product stock or alter payment status.
+

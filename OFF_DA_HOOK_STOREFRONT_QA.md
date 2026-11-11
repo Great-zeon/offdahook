@@ -37,3 +37,4 @@
 1. **Hero Collage Overlay Badges**: Confirmed in [`about.html`](file:///Users/macos/Downloads/offdahook/about.html#L285-L299) that the text overlay badges (`Mirror Silk • Zero Damage`, `Phenix Suites • Rosedale, NY`, `Shawnese Parker • Master Stylist`) have been permanently removed. Client photography is clean, unobstructed, and framed as editorial portraits.
 2. **Editorial Copy**: AI-sounding filler text was replaced with authentic brand narrative highlighting Shawnese's backstage runway directing at **New York Fashion Week (NYFW)**.
 3. **Mobile Responsiveness**: Floating pill navigation, cart slide-over drawer, and modal dialogues scale smoothly across iPhone, iPad, and desktop viewports.
+

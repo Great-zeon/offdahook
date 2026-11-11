@@ -49,3 +49,4 @@ Guarantees that a single Stripe Checkout session can never generate more than on
    - `SET search_path = public, pg_temp` prevents path injection.
    - `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated;` prevents unauthorized public RPC invocation.
    - `GRANT EXECUTE ... TO service_role;` permits serverless backend execution.
+

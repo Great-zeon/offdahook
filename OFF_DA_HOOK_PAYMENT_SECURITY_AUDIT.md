@@ -54,3 +54,4 @@
    - Masks customer email (`s***e@gmail.com`).
    - Omits customer phone and street address from response.
    - Enforces `Cache-Control: no-store`.
+

@@ -42,3 +42,4 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 | **Alternate Event ID** | Different `event.id`, same `stripe_session_id` | Order already exists for session | Short-circuits at step 2 via `stripe_session_id` | `HTTP 200` (`{ duplicate: true }`) | Re-links event to order, prevents second order. |
 | **Concurrent Workers** | Two deliveries within 50ms | Worker 1 acquires row lock | Worker 2 encounters in-flight state or duplicate catch | `HTTP 200` | Exactly one order created. |
 | **Database Outage** | Valid delivery | Supabase offline | RPC call fails | `HTTP 500` | Stripe queues retry with exponential backoff. |
+

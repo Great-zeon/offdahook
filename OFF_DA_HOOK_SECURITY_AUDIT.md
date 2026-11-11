@@ -42,3 +42,4 @@
 3. **Serverless Rate Limiting Boundary**:
    - `loginAttempts = new Map()` operates within individual container lifecycles.
    - Transparently documented: Container recycling resets in-memory counts. Brute-force protection relies primarily on high-entropy master PINs and constant-time comparisons.
+

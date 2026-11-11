@@ -1,13 +1,18 @@
 -- ========================================================================
--- OFF DA HOOK SALON SUITES - PRODUCTION DATABASE SCHEMA (CORRECTED)
+-- OFF DA HOOK SALON SUITES - PRODUCTION DATABASE SCHEMA (SECOND-ROUND REMEDIATION)
 -- PostgreSQL / Supabase Schema with Row Level Security & Atomic Concurrency
 -- Fully Idempotent Migration Script: Safe to execute on new or existing DBs
--- Defect Corrections:
---   1. process_paid_order_atomic validates all items before deducting stock
---   2. Insufficient stock is caught BEFORE any deduction; zero partial deductions
---   3. Shortfall records paid transaction safely as 'Backordered_Action_Required'
---   4. Webhook event lifecycle tracking (processing, completed, failed, action_required)
---   5. Execution permissions explicitly revoked from PUBLIC/anon and granted to service_role
+-- Second-Round Remediation Corrections:
+--   1. Durable Webhook Failure Logging: Independent procedure 'record_webhook_failure'
+--      records failures outside the rolled-back order transaction.
+--   2. Precise Unique Constraint Handling: Dissects constraint name via
+--      GET STACKED DIAGNOSTICS. Non-session collisions (e.g. order ID) are NOT treated as duplicates.
+--   3. Individual Item Quantity Validation: Every raw item is validated for positive integer
+--      bounds (1-10000) BEFORE aggregation; negative and decimal quantities are strictly rejected.
+--   4. Deterministic Deadlock Prevention: Multi-item product row locks acquired in alphabetical order.
+--   5. Idempotent Migration Safety: Safely verifies and creates unique index on stripe_session_id
+--      without dropping data or silently skipping constraint application.
+--   6. Merchant Notification Audit Columns: Tracks merchant alert status directly in orders table.
 -- ========================================================================
 
 -- Enable UUID extension
@@ -42,7 +47,7 @@ ALTER TABLE products ADD CONSTRAINT check_price_non_negative CHECK (price >= 0);
 -- ------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
-  stripe_session_id TEXT UNIQUE,
+  stripe_session_id TEXT,
   customer_name TEXT NOT NULL,
   customer_email TEXT NOT NULL,
   customer_phone TEXT,
@@ -62,12 +67,15 @@ CREATE TABLE IF NOT EXISTS orders (
   email_last_error TEXT,
   email_sent_at TIMESTAMPTZ,
   email_attempts INTEGER NOT NULL DEFAULT 0,
+  merchant_alert_sent BOOLEAN NOT NULL DEFAULT FALSE,
+  merchant_alert_status TEXT NOT NULL DEFAULT 'pending',
+  merchant_alert_error TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Idempotently add missing columns to existing orders table if it already exists
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_session_id TEXT UNIQUE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_session_id TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_phone TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address JSONB;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC(10, 2) NOT NULL DEFAULT 0.00;
@@ -80,9 +88,33 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS resend_id TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_last_error TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS merchant_alert_sent BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS merchant_alert_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS merchant_alert_error TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
-CREATE INDEX IF NOT EXISTS idx_orders_stripe_session ON orders(stripe_session_id);
+-- Safe Unique Index Migration for stripe_session_id on existing databases
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes 
+    WHERE tablename = 'orders' AND indexname = 'idx_orders_stripe_session_uniq'
+  ) THEN
+    -- Check for existing duplicate session IDs
+    IF EXISTS (
+      SELECT stripe_session_id 
+      FROM orders 
+      WHERE stripe_session_id IS NOT NULL 
+      GROUP BY stripe_session_id 
+      HAVING COUNT(*) > 1
+    ) THEN
+      RAISE WARNING 'CRITICAL: Duplicate non-null stripe_session_id values detected in orders. Unique index creation deferred until manual deduplication.';
+    ELSE
+      CREATE UNIQUE INDEX idx_orders_stripe_session_uniq ON orders(stripe_session_id) WHERE stripe_session_id IS NOT NULL;
+    END IF;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_orders_customer_email ON orders(customer_email);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_fulfillment ON orders(fulfillment_status);
@@ -114,7 +146,40 @@ CREATE INDEX IF NOT EXISTS idx_webhook_events_session ON webhook_events(stripe_s
 CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status);
 
 -- ------------------------------------------------------------------------
--- 4. Corrected Unified Atomic Order & Inventory Transaction Procedure
+-- 4. Dedicated Stored Procedure: Record Webhook Failure Durably
+-- Executed outside the rolled-back order transaction to guarantee failure observability
+-- ------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION record_webhook_failure(
+  p_event_id TEXT,
+  p_session_id TEXT,
+  p_event_type TEXT,
+  p_error TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF p_event_id IS NULL OR btrim(p_event_id) = '' THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO webhook_events (
+    id, stripe_session_id, event_type, status, received_at, last_attempt_at, attempt_count, last_error
+  ) VALUES (
+    p_event_id, p_session_id, COALESCE(p_event_type, 'checkout.session.completed'), 'failed', NOW(), NOW(), 1, p_error
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    status = 'failed',
+    last_error = p_error,
+    last_attempt_at = NOW(),
+    attempt_count = webhook_events.attempt_count + 1;
+END;
+$$;
+
+-- ------------------------------------------------------------------------
+-- 5. Corrected Unified Atomic Order & Inventory Transaction Procedure
 -- ------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION process_paid_order_atomic(
   p_order JSONB,
@@ -127,6 +192,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_raw_item JSONB;
   v_item RECORD;
   v_prod RECORD;
   v_order_id TEXT;
@@ -135,8 +201,12 @@ DECLARE
   v_existing_event RECORD;
   v_has_shortfall BOOLEAN := FALSE;
   v_shortfall_items JSONB := '[]'::jsonb;
+  v_constraint_name TEXT;
+  v_qty_numeric NUMERIC;
 BEGIN
-  -- 1. Input Validation
+  -- ======================================================================
+  -- A. Input Validation
+  -- ======================================================================
   IF p_order IS NULL OR jsonb_typeof(p_order) != 'object' THEN
     RAISE EXCEPTION 'p_order must be a valid JSON object';
   END IF;
@@ -155,7 +225,41 @@ BEGIN
     RAISE EXCEPTION 'p_items must be a non-empty JSON array';
   END IF;
 
-  -- 2. Idempotency Check via Stripe Session ID
+  -- ======================================================================
+  -- B. Individual Item Validation (BEFORE Aggregation)
+  -- Strictly rejects missing, negative, decimal, or overflow quantities
+  -- ======================================================================
+  FOR v_raw_item IN SELECT value FROM jsonb_array_elements(p_items) LOOP
+    IF v_raw_item IS NULL OR jsonb_typeof(v_raw_item) != 'object' THEN
+      RAISE EXCEPTION 'Every item in p_items must be a valid JSON object';
+    END IF;
+
+    IF v_raw_item->>'id' IS NULL OR btrim(v_raw_item->>'id') = '' THEN
+      RAISE EXCEPTION 'Order item is missing required product ID';
+    END IF;
+
+    IF v_raw_item->'qty' IS NULL OR jsonb_typeof(v_raw_item->'qty') != 'number' THEN
+      RAISE EXCEPTION 'Order item % has missing or non-numeric quantity', v_raw_item->>'id';
+    END IF;
+
+    v_qty_numeric := (v_raw_item->>'qty')::NUMERIC;
+
+    IF v_qty_numeric <= 0 THEN
+      RAISE EXCEPTION 'Order item % has non-positive quantity: %', v_raw_item->>'id', v_qty_numeric;
+    END IF;
+
+    IF v_qty_numeric != floor(v_qty_numeric) THEN
+      RAISE EXCEPTION 'Order item % has non-integer quantity: %', v_raw_item->>'id', v_qty_numeric;
+    END IF;
+
+    IF v_qty_numeric > 10000 THEN
+      RAISE EXCEPTION 'Order item % quantity exceeds maximum allowable threshold (10000): %', v_raw_item->>'id', v_qty_numeric;
+    END IF;
+  END LOOP;
+
+  -- ======================================================================
+  -- C. Idempotency Check via Stripe Session ID
+  -- ======================================================================
   SELECT id INTO v_existing_order_id
   FROM orders
   WHERE stripe_session_id = v_stripe_session_id
@@ -179,7 +283,9 @@ BEGIN
     );
   END IF;
 
-  -- 3. Webhook Event Lock & Lifecycle State
+  -- ======================================================================
+  -- D. Webhook Event Lock & Lifecycle State
+  -- ======================================================================
   IF p_event_id IS NOT NULL AND btrim(p_event_id) != '' THEN
     SELECT * INTO v_existing_event
     FROM webhook_events
@@ -212,20 +318,16 @@ BEGIN
     END IF;
   END IF;
 
-  -- 4. Pre-Validation of Items, Products & Stock (Row-level Locking)
+  -- ======================================================================
+  -- E. Deterministic Row-Locking & Stock Availability Pre-Check
+  -- Locks rows in alphabetical ORDER BY id to eliminate concurrent deadlocks
+  -- ======================================================================
   FOR v_item IN
     SELECT x.id, SUM(x.qty)::INT AS total_qty
     FROM jsonb_to_recordset(p_items) AS x(id TEXT, qty INT)
     GROUP BY x.id
+    ORDER BY x.id ASC -- Deterministic deadlock prevention
   LOOP
-    IF v_item.id IS NULL OR btrim(v_item.id) = '' THEN
-      RAISE EXCEPTION 'Item with missing or empty product ID in order payload';
-    END IF;
-    IF v_item.total_qty <= 0 THEN
-      RAISE EXCEPTION 'Item % has non-positive quantity: %', v_item.id, v_item.total_qty;
-    END IF;
-
-    -- Lock product row to prevent concurrent race condition
     SELECT id, title, price, stock, is_active
     INTO v_prod
     FROM products
@@ -251,10 +353,11 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 5. Inventory Shortfall Exception Handling
-  -- If stock is insufficient, money was already charged by Stripe.
-  -- Zero stock is deducted (no partial deduction).
-  -- Order is safely saved as 'Backordered_Action_Required' for merchant review.
+  -- ======================================================================
+  -- F. Inventory Shortfall Exception Handling
+  -- Customer paid on Stripe. Zero stock is deducted (eliminates partial deductions).
+  -- Order is safely stored as 'Backordered_Action_Required' for merchant intervention.
+  -- ======================================================================
   IF v_has_shortfall THEN
     INSERT INTO orders (
       id, stripe_session_id, customer_name, customer_email,
@@ -299,11 +402,14 @@ BEGIN
     );
   END IF;
 
-  -- 6. Atomic Deduction & Order Insertion (Happy Path)
+  -- ======================================================================
+  -- G. Atomic Deduction & Order Insertion (Happy Path)
+  -- ======================================================================
   FOR v_item IN
     SELECT x.id, SUM(x.qty)::INT AS total_qty
     FROM jsonb_to_recordset(p_items) AS x(id TEXT, qty INT)
     GROUP BY x.id
+    ORDER BY x.id ASC
   LOOP
     UPDATE products
     SET stock = stock - v_item.total_qty,
@@ -351,32 +457,42 @@ BEGIN
 
 EXCEPTION
   WHEN unique_violation THEN
-    SELECT id INTO v_existing_order_id
-    FROM orders
-    WHERE stripe_session_id = v_stripe_session_id
-    LIMIT 1;
+    GET STACKED DIAGNOSTICS v_constraint_name = CONSTRAINT_NAME;
 
-    RETURN jsonb_build_object(
-      'success', FALSE,
-      'duplicate', TRUE,
-      'order_id', v_existing_order_id,
-      'error', 'Unique constraint violation: event or checkout session already recorded.'
-    );
-  WHEN OTHERS THEN
-    IF p_event_id IS NOT NULL AND btrim(p_event_id) != '' THEN
-      UPDATE webhook_events
-      SET status = 'failed',
-          last_error = SQLERRM,
-          last_attempt_at = NOW()
-      WHERE id = p_event_id;
+    -- Only classify as duplicate if violation is specifically on stripe_session_id
+    IF v_constraint_name ILIKE '%stripe_session%' THEN
+      SELECT id INTO v_existing_order_id
+      FROM orders
+      WHERE stripe_session_id = v_stripe_session_id
+      LIMIT 1;
+
+      IF v_existing_order_id IS NOT NULL THEN
+        RETURN jsonb_build_object(
+          'success', FALSE,
+          'duplicate', TRUE,
+          'order_id', v_existing_order_id,
+          'message', 'Order for this Stripe session already exists.'
+        );
+      END IF;
     END IF;
 
+    IF v_constraint_name ILIKE '%webhook_events%' THEN
+      RETURN jsonb_build_object(
+        'success', FALSE,
+        'duplicate', TRUE,
+        'message', 'Webhook event ID has already been recorded.'
+      );
+    END IF;
+
+    -- Non-session collision (e.g. order ID primary key collision) is a true error
+    RAISE EXCEPTION 'Unique constraint collision on %: not a verified duplicate payment.', v_constraint_name;
+  WHEN OTHERS THEN
     RAISE EXCEPTION 'process_paid_order_atomic failed: %', SQLERRM;
 END;
 $$;
 
 -- ------------------------------------------------------------------------
--- 5. Individual Stock Deduction Procedure
+-- 6. Individual Stock Deduction Procedure
 -- ------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION deduct_product_stock_atomic(p_id TEXT, p_quantity INTEGER)
 RETURNS BOOLEAN
@@ -402,9 +518,12 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------
--- 6. Function Execution Permissions (SECURITY DEFINER Hardening)
--- Revoke PUBLIC/anon/authenticated execution; grant only to service_role
+-- 7. Function Execution Permissions (SECURITY DEFINER Hardening)
+-- Revoke PUBLIC/anon/authenticated execution; grant exclusively to service_role
 -- ------------------------------------------------------------------------
+REVOKE EXECUTE ON FUNCTION record_webhook_failure(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION record_webhook_failure(TEXT, TEXT, TEXT, TEXT) TO service_role;
+
 REVOKE EXECUTE ON FUNCTION process_paid_order_atomic(JSONB, JSONB, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION process_paid_order_atomic(JSONB, JSONB, TEXT) TO service_role;
 
@@ -412,7 +531,7 @@ REVOKE EXECUTE ON FUNCTION deduct_product_stock_atomic(TEXT, INTEGER) FROM PUBLI
 GRANT EXECUTE ON FUNCTION deduct_product_stock_atomic(TEXT, INTEGER) TO service_role;
 
 -- ------------------------------------------------------------------------
--- 7. Row Level Security Policies
+-- 8. Row Level Security Policies
 -- ------------------------------------------------------------------------
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
@@ -435,7 +554,7 @@ CREATE POLICY "Service role full access webhook_events" ON webhook_events
   FOR ALL USING (auth.role() = 'service_role');
 
 -- ------------------------------------------------------------------------
--- 8. Catalog Seed Data (Preserves Existing Records via ON CONFLICT)
+-- 9. Catalog Seed Data (Preserves Existing Records via ON CONFLICT)
 -- ------------------------------------------------------------------------
 INSERT INTO products (id, title, price, stock, category, volume, image, description)
 VALUES
@@ -452,4 +571,3 @@ VALUES
   ('the-children-s-line', 'Perfect Paige''s Unicorn Magic Hair System', 49.99, 8, 'kids bundles', 'Gentle Tear-Free Trio', 'assets/shop/the-children-s-line-enhanced.jpg', 'Ultra-gentle formulation for tender scalps and growing curls. Tear-free hydration.'),
   ('fully-loaded-regrowth-system', 'Fully Loaded Regrowth System', 100.00, 7, 'bundles regrowth', 'Comprehensive Crown Recovery Kit', 'assets/shop/fully-loaded-regrowth-system-enhanced.jpg', 'The complete professional recovery protocol for severe thinning, edges, and tension damage.')
 ON CONFLICT (id) DO NOTHING;
-

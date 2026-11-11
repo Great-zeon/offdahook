@@ -35,3 +35,4 @@ In [`api/verify-session.js`](file:///Users/macos/Downloads/offdahook/api/verify-
 | **PII Exposure** | Returned customer phone and street address | Returns only `customerName`, `maskedEmail` (`j***e@domain.com`), and `itemCount` | **PASS** |
 | **HTTP Caching** | Default Vercel caching allowed proxies to store response | Enforces `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate` | **PASS** |
 | **Method Restriction** | Tolerated unsupported methods | Strictly rejects all methods other than `GET` and `OPTIONS` | **PASS** |
+

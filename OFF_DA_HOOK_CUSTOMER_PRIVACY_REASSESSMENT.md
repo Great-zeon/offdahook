@@ -49,3 +49,4 @@ Expires: 0
 
 ### C. Input Sanitization
 Session IDs are strictly validated against `/^cs_(test|live)_[a-zA-Z0-9]+$/` before querying Stripe or Supabase, rejecting malformed inputs, SQL injection attempts, and path traversal strings.
+

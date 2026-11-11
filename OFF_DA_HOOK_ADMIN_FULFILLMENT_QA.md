@@ -27,3 +27,4 @@
    - Dedicated "Resend Receipt" button sends `PUT /api/orders` with `action: 'resend_receipt'`.
    - Dispatches branded HTML receipt via Resend and updates `email_status`, `email_sent_at`, and `email_attempts`.
    - Does NOT touch inventory or order totals.
+

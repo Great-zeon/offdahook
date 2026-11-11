@@ -60,3 +60,4 @@ flowchart TD
 ### E. Email Infrastructure (`api/webhook.js`, `api/orders.js`)
 - Branded customer receipts and merchant alerts via Resend REST API.
 - Email delivery tracking in `orders` (`email_status`, `resend_id`, `email_last_error`, `email_sent_at`, `email_attempts`).
+

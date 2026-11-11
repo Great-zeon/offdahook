@@ -157,6 +157,9 @@ module.exports = async (req, res) => {
     }
 
     // 3. Create Stripe Checkout Session with US Shipping & Tax Enforcement
+    // PAYMENT METHOD ARCHITECTURE: Restricted explicitly to 'card' (credit/debit).
+    // Card payments settle synchronously, preventing orphaned checkouts and uncollected funds.
+    // Asynchronous payment events are also handled defensively in api/webhook.js.
     const origin = req.headers.origin || 'https://offdahook.vercel.app';
     const sessionConfig = {
       payment_method_types: ['card'],

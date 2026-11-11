@@ -34,10 +34,23 @@ Under zero-trust engineering rules, an automated assistant or developer must **n
 ### Step 2: Configure Webhook Signing Secret (ACT-02)
 1. Open [Stripe Dashboard](https://dashboard.stripe.com/) > **Developers > Webhooks**.
 2. Click **Add endpoint**. Set URL: `https://offdahook.vercel.app/api/webhook`.
-3. Event to listen for: `checkout.session.completed`.
+3. Events to listen for:
+   - `checkout.session.completed`
+   - `checkout.session.async_payment_succeeded`
+   - `checkout.session.async_payment_failed`
 4. Copy the revealed Signing Secret (`whsec_...`).
 5. In [Vercel Project Settings](https://vercel.com/) > **Environment Variables**, create `STRIPE_WEBHOOK_SECRET` with the copied value.
 
 ### Step 3: Set Admin Passcode (ACT-03)
 1. In Vercel Project Settings > **Environment Variables**, add `ADMIN_PIN` with your secure passcode.
 2. Trigger a redeployment in Vercel to refresh serverless container environments.
+
+### Step 4: Staging Verification Pass (ACT-05)
+1. In Stripe test mode, open `https://offdahook.vercel.app/shop.html`.
+2. Add a product to the cart and proceed to Stripe Checkout.
+3. Use Stripe test card `4242 4242 4242 4242` with any future expiry date and 3 digits CVC.
+4. Verify complete end-to-end chain:
+   - Redirects to `order-confirmation.html` showing verified order status.
+   - Database record created in Supabase `orders` table.
+   - Product stock correctly decremented by purchased quantity.
+   - Merchant notification logged in `orders` table.

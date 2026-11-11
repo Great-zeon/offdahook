@@ -1,16 +1,19 @@
 // ========================================================================
 // OFF DA HOOK SALON SUITES - PRODUCTION STRIPE WEBHOOK HANDLER
 // Vercel Serverless Function with Raw Body Buffering & Unified Atomic Transactions
-// Defect Corrections:
-//   1. COMPLETELY REMOVED non-atomic sequential fallback insertion.
-//   2. Enforces session.payment_status === 'paid', USD currency, positive amount.
-//   3. Single authoritative processing route via process_paid_order_atomic.
-//   4. Transient database errors return HTTP 500 so Stripe automatically retries.
-//   5. Handles inventory shortfall (action_required) by notifying merchant without deducting stock.
+// Second-Round Remediation Corrections:
+//   1. Durable Webhook Failure Logging: Calls record_webhook_failure RPC on error.
+//   2. Collision-Resistant Order IDs: Generates crypto.randomBytes(4) hex suffixes.
+//   3. Strict Shared Payment Validation: Enforces exact currency, bounds, and item checks.
+//   4. Asynchronous Event Support: Handles checkout.session.async_payment_succeeded and failed.
+//   5. Merchant Alert Independence: Merchant notification dispatched even if customer email missing.
+//   6. HTML Injection Defense: Escapes all dynamic customer and formula fields in email templates.
 // ========================================================================
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const https = require('https');
+const crypto = require('crypto');
+const { validateStripeSession, escapeHtml } = require('./_payment-validation');
 
 let stripe = null;
 if (process.env.STRIPE_SECRET_KEY) {
@@ -107,8 +110,34 @@ const handler = async (req, res) => {
     return res.status(400).send(`Webhook Signature Verification Error: ${err.message}`);
   }
 
-  // Handle successful checkout payment
-  if (event.type === 'checkout.session.completed') {
+  // Handle asynchronous payment failure
+  if (event.type === 'checkout.session.async_payment_failed') {
+    const session = event.data.object;
+    console.warn(`Asynchronous payment failed for session: ${session.id}`);
+
+    if (supabase) {
+      try {
+        await supabase.rpc('record_webhook_failure', {
+          p_event_id: event.id,
+          p_session_id: session.id,
+          p_event_type: event.type,
+          p_error: 'Asynchronous payment failed or was declined by issuing institution'
+        });
+      } catch (e) {}
+    }
+
+    const merchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
+    await sendEmailNotification(
+      merchantEmail,
+      `⚠️ Payment Failed for Session: ${escapeHtml(session.id)}`,
+      `<p>An asynchronous payment attempt failed for Stripe session <strong>${escapeHtml(session.id)}</strong>. No order was fulfilled.</p>`
+    );
+
+    return res.status(200).json({ received: true, status: 'async_payment_failed' });
+  }
+
+  // Handle successful checkout payments (both immediate and asynchronous)
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const session = event.data.object;
 
     try {
@@ -117,22 +146,29 @@ const handler = async (req, res) => {
         return res.status(500).json({ error: 'Database service unavailable' });
       }
 
-      // 1. Mandatory Payment Validation Checks
-      // Do not fulfill order if payment has not been collected (e.g. async/deferred payment methods)
-      if (session.payment_status !== 'paid') {
-        console.warn(`Webhook received checkout.session.completed for session ${session.id} but payment_status is '${session.payment_status}'. Deferring fulfillment.`);
-        return res.status(200).json({ received: true, status: 'payment_pending', message: 'Payment not yet confirmed as paid' });
-      }
+      // 1. Authoritative Shared Payment Validation
+      let validatedSession;
+      try {
+        validatedSession = validateStripeSession(session);
+      } catch (valErr) {
+        // If payment is pending on a completed event, defer fulfillment safely
+        if (valErr.code === 'PAYMENT_NOT_PAID') {
+          console.warn(`Payment status '${session.payment_status}' for session ${session.id}. Deferring fulfillment until async payment succeeds.`);
+          return res.status(200).json({ received: true, status: 'payment_pending' });
+        }
 
-      // Enforce currency and amount bounds
-      if (session.currency && session.currency.toLowerCase() !== 'usd') {
-        console.error(`Rejected checkout with invalid currency: ${session.currency}`);
-        return res.status(400).json({ error: 'Unsupported currency' });
-      }
+        console.error(`Session validation rejected: ${valErr.message}`);
+        // Record failure in webhook_events
+        try {
+          await supabase.rpc('record_webhook_failure', {
+            p_event_id: event.id,
+            p_session_id: session.id || 'unknown',
+            p_event_type: event.type,
+            p_error: valErr.message
+          });
+        } catch (e) {}
 
-      if (typeof session.amount_total !== 'number' || session.amount_total <= 0) {
-        console.error(`Rejected checkout with non-positive amount_total: ${session.amount_total}`);
-        return res.status(400).json({ error: 'Invalid total amount' });
+        return res.status(400).json({ error: valErr.message, code: valErr.code });
       }
 
       // 2. Extract Customer & Order Information
@@ -140,55 +176,60 @@ const handler = async (req, res) => {
       const customerEmail = session.customer_details?.email || session.customer_email || '';
       const customerPhone = session.customer_details?.phone || '';
       const shippingAddress = session.shipping_details?.address || session.customer_details?.address || {};
-      const totalAmount = (session.amount_total || 0) / 100;
+      const totalAmount = validatedSession.amountTotalDollars;
       const subtotalAmount = (session.amount_subtotal || session.amount_total || 0) / 100;
+      const items = validatedSession.items;
 
-      // Deterministic non-colliding Order ID: ODH-YYYYMMDD-XXXX
+      // Cryptographically Collision-Resistant Order ID: ODH-YYYYMMDD-8HEX
       const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const orderId = `ODH-${datePrefix}-${randomSuffix}`;
-
-      let items = [];
-      if (session.metadata?.itemsJson) {
-        try {
-          items = JSON.parse(session.metadata.itemsJson);
-        } catch (e) {
-          console.error('Failed to parse session metadata itemsJson:', e);
-        }
-      }
-
-      if (!Array.isArray(items) || items.length === 0) {
-        console.error('CRITICAL: Webhook received empty or invalid items metadata for session:', session.id);
-        return res.status(400).json({ error: 'Missing or malformed items metadata' });
-      }
+      const secureSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+      const orderId = `ODH-${datePrefix}-${secureSuffix}`;
 
       // 3. Single Authoritative Processing Route via process_paid_order_atomic
-      // ZERO NON-ATOMIC FALLBACK: If RPC fails, return HTTP 500 to allow Stripe retries.
-      const { data: rpcData, error: rpcError } = await supabase.rpc('process_paid_order_atomic', {
-        p_order: {
-          id: orderId,
-          stripe_session_id: session.id,
-          customer_name: customerName,
-          customer_email: customerEmail,
-          customer_phone: customerPhone,
-          shipping_address: shippingAddress,
-          subtotal: subtotalAmount,
-          total_amount: totalAmount,
-          payment_method: 'Stripe'
-        },
-        p_items: items,
-        p_event_id: event.id
-      });
+      let rpcData;
+      let rpcError;
 
-      if (rpcError) {
-        console.error('CRITICAL: process_paid_order_atomic error in webhook:', rpcError);
-        // Return 500 so Stripe retries the webhook delivery
-        return res.status(500).json({ error: 'Database transaction failed. Webhook retry scheduled.' });
+      try {
+        const result = await supabase.rpc('process_paid_order_atomic', {
+          p_order: {
+            id: orderId,
+            stripe_session_id: session.id,
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone,
+            shipping_address: shippingAddress,
+            subtotal: subtotalAmount,
+            total_amount: totalAmount,
+            payment_method: 'Stripe',
+            event_type: event.type
+          },
+          p_items: items,
+          p_event_id: event.id
+        });
+
+        rpcData = result.data;
+        rpcError = result.error;
+      } catch (txEx) {
+        rpcError = txEx;
       }
 
-      if (!rpcData) {
-        console.error('CRITICAL: process_paid_order_atomic returned null response.');
-        return res.status(500).json({ error: 'Null transaction response. Webhook retry scheduled.' });
+      // If atomic procedure fails, log durably in separate transaction and return HTTP 500
+      if (rpcError || !rpcData) {
+        const errMsg = rpcError?.message || 'Null transaction response';
+        console.error('CRITICAL: process_paid_order_atomic transaction failure:', errMsg);
+
+        try {
+          await supabase.rpc('record_webhook_failure', {
+            p_event_id: event.id,
+            p_session_id: session.id,
+            p_event_type: event.type,
+            p_error: errMsg
+          });
+        } catch (logErr) {
+          console.error('CRITICAL: record_webhook_failure failed:', logErr.message);
+        }
+
+        return res.status(500).json({ error: 'Database transaction failed. Webhook retry scheduled.' });
       }
 
       // 4. Handle Duplicate Event (Idempotency Protection)
@@ -204,8 +245,6 @@ const handler = async (req, res) => {
       }
 
       // 6. Handle Inventory Shortfall (Customer Paid, but Item(s) Out of Stock)
-      // Money was collected by Stripe. Order is preserved as Backordered_Action_Required.
-      // Zero units of inventory were deducted. Alert merchant immediately.
       if (rpcData.action_required === true && rpcData.error_code === 'INVENTORY_SHORTFALL') {
         const shortfallOrderId = rpcData.order_id || orderId;
         console.warn(`INVENTORY SHORTFALL ALERT for order ${shortfallOrderId}: Customer paid, items out of stock.`);
@@ -213,22 +252,30 @@ const handler = async (req, res) => {
         const merchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
         const shortfallHtml = `
           <div style="font-family:sans-serif; padding:20px; color:#222;">
-            <h2 style="color:#DC2626;">⚠️ ACTION REQUIRED: Inventory Shortfall on Paid Order ${shortfallOrderId}</h2>
-            <p><strong>Customer:</strong> ${customerName} (${customerEmail}, ${customerPhone})</p>
+            <h2 style="color:#DC2626;">⚠️ ACTION REQUIRED: Inventory Shortfall on Paid Order ${escapeHtml(shortfallOrderId)}</h2>
+            <p><strong>Customer:</strong> ${escapeHtml(customerName)} (${escapeHtml(customerEmail)}, ${escapeHtml(customerPhone)})</p>
             <p><strong>Total Paid:</strong> $${totalAmount.toFixed(2)} USD via Stripe</p>
-            <p><strong>Stripe Session:</strong> ${session.id}</p>
-            <p style="color:#B91C1C; font-weight:bold;">One or more items in this order exceeded available stock. Zero stock was deducted, and the order has been saved with status 'Backordered_Action_Required'.</p>
+            <p><strong>Stripe Session:</strong> ${escapeHtml(session.id)}</p>
+            <p style="color:#B91C1C; font-weight:bold;">One or more items exceeded available stock. Zero stock was deducted, and the order has been preserved with status 'Backordered_Action_Required'.</p>
             <h3>Shortfall Details:</h3>
-            <pre style="background:#F3F4F6; padding:12px; border-radius:6px;">${JSON.stringify(rpcData.shortfall_details, null, 2)}</pre>
+            <pre style="background:#F3F4F6; padding:12px; border-radius:6px;">${escapeHtml(JSON.stringify(rpcData.shortfall_details, null, 2))}</pre>
             <p><a href="https://offdahook.vercel.app/admin.html" style="background:#DC2626; color:#fff; padding:10px 16px; text-decoration:none; border-radius:4px;">Open Admin Dashboard to Manage Backorder</a></p>
           </div>
         `;
 
-        await sendEmailNotification(
+        const merchantAlertRes = await sendEmailNotification(
           merchantEmail,
           `⚠️ ACTION REQUIRED: Inventory Shortfall on Paid Order ${shortfallOrderId}`,
           shortfallHtml
         );
+
+        try {
+          await supabase.from('orders').update({
+            merchant_alert_sent: merchantAlertRes.success,
+            merchant_alert_status: merchantAlertRes.success ? 'sent' : 'failed',
+            merchant_alert_error: merchantAlertRes.error || null
+          }).eq('id', shortfallOrderId);
+        } catch (e) {}
 
         return res.status(200).json({
           received: true,
@@ -241,24 +288,32 @@ const handler = async (req, res) => {
       // 7. Happy Path: Order Successfully Persisted & Stock Deducted Atomically
       if (rpcData.success !== true) {
         console.error('CRITICAL: Unexpected RPC failure state:', rpcData);
+        try {
+          await supabase.rpc('record_webhook_failure', {
+            p_event_id: event.id,
+            p_session_id: session.id,
+            p_event_type: event.type,
+            p_error: rpcData.error || 'Unexpected transaction result'
+          });
+        } catch (e) {}
         return res.status(500).json({ error: 'Order processing failed. Webhook retry scheduled.' });
       }
 
       const effectiveOrderId = rpcData.order_id || orderId;
 
-      // 8. Dispatch Customer Receipt & Merchant Notification
+      // 8. Dispatch Customer Receipt (if email provided)
+      const itemsHtml = items.map(i => `
+        <tr>
+          <td style="padding:8px 0; border-bottom:1px solid #2A2536; color:#FFFFFF;">${escapeHtml(i.title)} &times; ${i.qty || 1}</td>
+          <td style="padding:8px 0; border-bottom:1px solid #2A2536; text-align:right; color:#FF539B; font-weight:bold;">$${((Number(i.price) || 0) * (Number(i.qty) || 1)).toFixed(2)}</td>
+        </tr>
+      `).join('');
+
+      const formattedAddress = shippingAddress.line1
+        ? `${escapeHtml(shippingAddress.line1)}${shippingAddress.line2 ? ', ' + escapeHtml(shippingAddress.line2) : ''}, ${escapeHtml(shippingAddress.city)}, ${escapeHtml(shippingAddress.state)} ${escapeHtml(shippingAddress.postal_code)}`
+        : 'Customer Address on file';
+
       if (customerEmail) {
-        const itemsHtml = items.map(i => `
-          <tr>
-            <td style="padding:8px 0; border-bottom:1px solid #2A2536; color:#FFFFFF;">${i.title} &times; ${i.qty || 1}</td>
-            <td style="padding:8px 0; border-bottom:1px solid #2A2536; text-align:right; color:#FF539B; font-weight:bold;">$${((i.price || 0) * (i.qty || 1)).toFixed(2)}</td>
-          </tr>
-        `).join('');
-
-        const formattedAddress = shippingAddress.line1
-          ? `${shippingAddress.line1}${shippingAddress.line2 ? ', ' + shippingAddress.line2 : ''}, ${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postal_code}`
-          : 'Customer Address on file';
-
         const receiptHtml = `
           <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; background:#0F0B15; color:#F0EEF8; padding:32px; border-radius:8px; max-width:600px; margin:0 auto;">
             <div style="text-align:center; margin-bottom:24px;">
@@ -266,8 +321,8 @@ const handler = async (req, res) => {
               <p style="color:#A39EB2; font-size:12px; margin-top:4px;">Rosedale, NY • Phenix Salon Suites Suite #192</p>
             </div>
             <div style="background:#1B1526; border:1px solid #362E48; border-radius:8px; padding:20px; margin-bottom:20px;">
-              <h2 style="color:#FFFFFF; margin-top:0; font-size:18px;">Crown Order Confirmed: ${effectiveOrderId}</h2>
-              <p style="font-size:14px; line-height:1.6; color:#C5C0D4;">Thank you, ${customerName}! Your signature hair care order has been verified and is being prepared with utmost care by Master Stylist Shawnese Parker.</p>
+              <h2 style="color:#FFFFFF; margin-top:0; font-size:18px;">Crown Order Confirmed: ${escapeHtml(effectiveOrderId)}</h2>
+              <p style="font-size:14px; line-height:1.6; color:#C5C0D4;">Thank you, ${escapeHtml(customerName)}! Your signature hair care order has been verified and is being prepared with utmost care by Master Stylist Shawnese Parker.</p>
               <table style="width:100%; border-collapse:collapse; margin-top:16px; font-size:14px;">
                 <thead>
                   <tr style="border-bottom:1px solid #362E48; color:#A39EB2; text-align:left;">
@@ -286,9 +341,9 @@ const handler = async (req, res) => {
             </div>
             <div style="background:#1B1526; border:1px solid #362E48; border-radius:8px; padding:16px; font-size:13px; color:#A39EB2;">
               <strong style="color:#FFFFFF;">Shipping To:</strong><br>
-              ${customerName}<br>
+              ${escapeHtml(customerName)}<br>
               ${formattedAddress}<br>
-              Phone: ${customerPhone || 'On file'}
+              Phone: ${escapeHtml(customerPhone || 'On file')}
             </div>
             <p style="text-align:center; font-size:12px; color:#6B647D; margin-top:24px;">
               Questions about your order? Call the salon directly at (347) 238-1602 or reply to this email.<br>
@@ -321,31 +376,39 @@ const handler = async (req, res) => {
             }).eq('id', effectiveOrderId);
           }
         } catch (e) {}
-
-        // Merchant Alert to Shawnese
-        const merchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
-        const merchantHtml = `
-          <div style="font-family:sans-serif; padding:20px; color:#222;">
-            <h2>🎉 New Crown Order Received: ${effectiveOrderId}</h2>
-            <p><strong>Customer:</strong> ${customerName} (${customerEmail}, ${customerPhone})</p>
-            <p><strong>Total:</strong> $${totalAmount.toFixed(2)}</p>
-            <p><strong>Shipping Address:</strong><br>${formattedAddress}</p>
-            <h3>Items to Fulfill:</h3>
-            <ul>
-              ${items.map(i => `<li>${i.title} &times; ${i.qty || 1}</li>`).join('')}
-            </ul>
-            <p><a href="https://offdahook.vercel.app/admin.html" style="background:#FF539B; color:#fff; padding:10px 16px; text-decoration:none; border-radius:4px;">Open Admin Dashboard</a></p>
-          </div>
-        `;
-
-        await sendEmailNotification(
-          merchantEmail,
-          `📦 New Order to Fulfill: ${effectiveOrderId} ($${totalAmount.toFixed(2)})`,
-          merchantHtml
-        );
       }
 
-      console.log(`Order ${effectiveOrderId} successfully processed atomically for ${customerEmail} ($${totalAmount})`);
+      // 9. Merchant Alert Dispatched INDEPENDENTLY of Customer Email
+      const merchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
+      const merchantHtml = `
+        <div style="font-family:sans-serif; padding:20px; color:#222;">
+          <h2>🎉 New Crown Order Received: ${escapeHtml(effectiveOrderId)}</h2>
+          <p><strong>Customer:</strong> ${escapeHtml(customerName)} (${escapeHtml(customerEmail || 'No email provided')}, ${escapeHtml(customerPhone || 'No phone')})</p>
+          <p><strong>Total:</strong> $${totalAmount.toFixed(2)} USD</p>
+          <p><strong>Shipping Address:</strong><br>${formattedAddress}</p>
+          <h3>Items to Fulfill:</h3>
+          <ul>
+            ${items.map(i => `<li>${escapeHtml(i.title)} &times; ${i.qty || 1}</li>`).join('')}
+          </ul>
+          <p><a href="https://offdahook.vercel.app/admin.html" style="background:#FF539B; color:#fff; padding:10px 16px; text-decoration:none; border-radius:4px;">Open Admin Dashboard</a></p>
+        </div>
+      `;
+
+      const merchantAlertResult = await sendEmailNotification(
+        merchantEmail,
+        `📦 New Order to Fulfill: ${effectiveOrderId} ($${totalAmount.toFixed(2)})`,
+        merchantHtml
+      );
+
+      try {
+        await supabase.from('orders').update({
+          merchant_alert_sent: merchantAlertResult.success,
+          merchant_alert_status: merchantAlertResult.success ? 'sent' : 'failed',
+          merchant_alert_error: merchantAlertResult.error || null
+        }).eq('id', effectiveOrderId);
+      } catch (e) {}
+
+      console.log(`Order ${effectiveOrderId} successfully processed atomically for ${customerEmail || 'client'} ($${totalAmount})`);
       return res.status(200).json({ received: true, orderId: effectiveOrderId });
     } catch (err) {
       console.error('Unhandled error processing order in webhook:', err);

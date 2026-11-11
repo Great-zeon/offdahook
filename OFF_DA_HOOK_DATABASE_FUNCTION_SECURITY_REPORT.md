@@ -57,3 +57,4 @@ WHERE id = v_item.id
 FOR UPDATE;
 ```
 When two customer orders for the same formula execute concurrently, the second transaction blocks at `SELECT ... FOR UPDATE` until the first transaction commits or rolls back. This eliminates race conditions, double-spending, and inventory overselling.
+

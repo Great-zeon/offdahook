@@ -35,3 +35,4 @@
    - `email_sent_at`: Timestamp of successful dispatch.
    - `email_attempts`: Count of dispatch attempts.
    - `email_last_error`: Text of error if dispatch fails.
+

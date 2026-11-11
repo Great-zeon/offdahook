@@ -29,3 +29,4 @@ The codebase and database schema have been hardened against financial loss, doub
 2. Configure `STRIPE_WEBHOOK_SECRET` in Vercel.
 3. Configure `ADMIN_PIN` in Vercel.
 4. Follow the test purchase runbook using Stripe Test Card `4242...`.
+
