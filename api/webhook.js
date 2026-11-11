@@ -1,6 +1,12 @@
 // ========================================================================
-// OFF DA HOOK SALON SUITES - HARDENED STRIPE WEBHOOK HANDLER
-// Vercel Serverless Function with Raw Body Buffering & Atomic Transactions
+// OFF DA HOOK SALON SUITES - PRODUCTION STRIPE WEBHOOK HANDLER
+// Vercel Serverless Function with Raw Body Buffering & Unified Atomic Transactions
+// Defect Corrections:
+//   1. COMPLETELY REMOVED non-atomic sequential fallback insertion.
+//   2. Enforces session.payment_status === 'paid', USD currency, positive amount.
+//   3. Single authoritative processing route via process_paid_order_atomic.
+//   4. Transient database errors return HTTP 500 so Stripe automatically retries.
+//   5. Handles inventory shortfall (action_required) by notifying merchant without deducting stock.
 // ========================================================================
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
@@ -108,10 +114,28 @@ const handler = async (req, res) => {
     try {
       if (!supabase) {
         console.error('CRITICAL: Supabase client not initialized in webhook.');
-        return res.status(500).json({ error: 'Database connection unavailable' });
+        return res.status(500).json({ error: 'Database service unavailable' });
       }
 
-      // 1. Extract Customer & Shipping Information
+      // 1. Mandatory Payment Validation Checks
+      // Do not fulfill order if payment has not been collected (e.g. async/deferred payment methods)
+      if (session.payment_status !== 'paid') {
+        console.warn(`Webhook received checkout.session.completed for session ${session.id} but payment_status is '${session.payment_status}'. Deferring fulfillment.`);
+        return res.status(200).json({ received: true, status: 'payment_pending', message: 'Payment not yet confirmed as paid' });
+      }
+
+      // Enforce currency and amount bounds
+      if (session.currency && session.currency.toLowerCase() !== 'usd') {
+        console.error(`Rejected checkout with invalid currency: ${session.currency}`);
+        return res.status(400).json({ error: 'Unsupported currency' });
+      }
+
+      if (typeof session.amount_total !== 'number' || session.amount_total <= 0) {
+        console.error(`Rejected checkout with non-positive amount_total: ${session.amount_total}`);
+        return res.status(400).json({ error: 'Invalid total amount' });
+      }
+
+      // 2. Extract Customer & Order Information
       const customerName = session.customer_details?.name || 'Valued Crown Client';
       const customerEmail = session.customer_details?.email || session.customer_email || '';
       const customerPhone = session.customer_details?.phone || '';
@@ -133,91 +157,96 @@ const handler = async (req, res) => {
         }
       }
 
-      // 2. Execute Unified Atomic Order & Inventory Transaction
-      let txSuccess = false;
-      let effectiveOrderId = orderId;
-
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('process_paid_order_atomic', {
-          p_order: {
-            id: orderId,
-            stripe_session_id: session.id,
-            customer_name: customerName,
-            customer_email: customerEmail,
-            customer_phone: customerPhone,
-            shipping_address: shippingAddress,
-            subtotal: subtotalAmount,
-            total_amount: totalAmount,
-            payment_method: 'Stripe'
-          },
-          p_items: items,
-          p_event_id: event.id
-        });
-
-        if (!rpcError && rpcData) {
-          if (rpcData.duplicate === true) {
-            console.log(`Idempotency defense: Event ${event.id} or session ${session.id} already processed.`);
-            return res.status(200).json({ received: true, message: 'Event already processed' });
-          }
-          if (rpcData.success === true) {
-            txSuccess = true;
-            if (rpcData.order_id) effectiveOrderId = rpcData.order_id;
-          }
-        }
-      } catch (rpcEx) {
-        console.warn('RPC process_paid_order_atomic fallback required:', rpcEx.message);
+      if (!Array.isArray(items) || items.length === 0) {
+        console.error('CRITICAL: Webhook received empty or invalid items metadata for session:', session.id);
+        return res.status(400).json({ error: 'Missing or malformed items metadata' });
       }
 
-      // 3. Fallback Sequential Insertion if Stored Procedure is not yet deployed
-      if (!txSuccess) {
-        // Idempotency check on orders
-        const { data: existing } = await supabase
-          .from('orders')
-          .select('id')
-          .eq('stripe_session_id', session.id)
-          .maybeSingle();
-
-        if (existing) {
-          console.log(`Idempotency defense: Order already exists for session ${session.id} (${existing.id}).`);
-          return res.status(200).json({ received: true, message: 'Event already processed' });
-        }
-
-        // Insert order
-        const { error: insertErr } = await supabase.from('orders').insert([{
+      // 3. Single Authoritative Processing Route via process_paid_order_atomic
+      // ZERO NON-ATOMIC FALLBACK: If RPC fails, return HTTP 500 to allow Stripe retries.
+      const { data: rpcData, error: rpcError } = await supabase.rpc('process_paid_order_atomic', {
+        p_order: {
           id: orderId,
           stripe_session_id: session.id,
           customer_name: customerName,
           customer_email: customerEmail,
           customer_phone: customerPhone,
           shipping_address: shippingAddress,
-          items: items,
           subtotal: subtotalAmount,
           total_amount: totalAmount,
-          payment_status: 'Paid',
-          payment_method: 'Stripe',
-          fulfillment_status: 'Pending',
-          created_at: new Date().toISOString()
-        }]);
+          payment_method: 'Stripe'
+        },
+        p_items: items,
+        p_event_id: event.id
+      });
 
-        if (insertErr) throw insertErr;
-
-        // Deduct inventory
-        for (const item of items) {
-          if (item.id) {
-            const qty = parseInt(item.qty, 10) || 1;
-            try {
-              await supabase.rpc('deduct_product_stock_atomic', { p_id: item.id, p_quantity: qty });
-            } catch (e) {}
-          }
-        }
-
-        try {
-          await supabase.from('webhook_events').insert([{ id: event.id, event_type: event.type }]);
-        } catch (e) {}
+      if (rpcError) {
+        console.error('CRITICAL: process_paid_order_atomic error in webhook:', rpcError);
+        // Return 500 so Stripe retries the webhook delivery
+        return res.status(500).json({ error: 'Database transaction failed. Webhook retry scheduled.' });
       }
 
-      // 4. Dispatch Branded Customer Receipt & Merchant Alert
-      let emailSuccess = false;
+      if (!rpcData) {
+        console.error('CRITICAL: process_paid_order_atomic returned null response.');
+        return res.status(500).json({ error: 'Null transaction response. Webhook retry scheduled.' });
+      }
+
+      // 4. Handle Duplicate Event (Idempotency Protection)
+      if (rpcData.duplicate === true) {
+        console.log(`Idempotency defense: Event ${event.id} or session ${session.id} already processed. Order ID: ${rpcData.order_id}`);
+        return res.status(200).json({ received: true, duplicate: true, orderId: rpcData.order_id });
+      }
+
+      // 5. Handle In-Flight Concurrent Worker
+      if (rpcData.in_flight === true) {
+        console.log(`Concurrent processing in progress for event ${event.id}. Returning 200.`);
+        return res.status(200).json({ received: true, in_flight: true });
+      }
+
+      // 6. Handle Inventory Shortfall (Customer Paid, but Item(s) Out of Stock)
+      // Money was collected by Stripe. Order is preserved as Backordered_Action_Required.
+      // Zero units of inventory were deducted. Alert merchant immediately.
+      if (rpcData.action_required === true && rpcData.error_code === 'INVENTORY_SHORTFALL') {
+        const shortfallOrderId = rpcData.order_id || orderId;
+        console.warn(`INVENTORY SHORTFALL ALERT for order ${shortfallOrderId}: Customer paid, items out of stock.`);
+
+        const merchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
+        const shortfallHtml = `
+          <div style="font-family:sans-serif; padding:20px; color:#222;">
+            <h2 style="color:#DC2626;">⚠️ ACTION REQUIRED: Inventory Shortfall on Paid Order ${shortfallOrderId}</h2>
+            <p><strong>Customer:</strong> ${customerName} (${customerEmail}, ${customerPhone})</p>
+            <p><strong>Total Paid:</strong> $${totalAmount.toFixed(2)} USD via Stripe</p>
+            <p><strong>Stripe Session:</strong> ${session.id}</p>
+            <p style="color:#B91C1C; font-weight:bold;">One or more items in this order exceeded available stock. Zero stock was deducted, and the order has been saved with status 'Backordered_Action_Required'.</p>
+            <h3>Shortfall Details:</h3>
+            <pre style="background:#F3F4F6; padding:12px; border-radius:6px;">${JSON.stringify(rpcData.shortfall_details, null, 2)}</pre>
+            <p><a href="https://offdahook.vercel.app/admin.html" style="background:#DC2626; color:#fff; padding:10px 16px; text-decoration:none; border-radius:4px;">Open Admin Dashboard to Manage Backorder</a></p>
+          </div>
+        `;
+
+        await sendEmailNotification(
+          merchantEmail,
+          `⚠️ ACTION REQUIRED: Inventory Shortfall on Paid Order ${shortfallOrderId}`,
+          shortfallHtml
+        );
+
+        return res.status(200).json({
+          received: true,
+          action_required: true,
+          orderId: shortfallOrderId,
+          message: 'Order saved as Backordered_Action_Required due to stock shortfall.'
+        });
+      }
+
+      // 7. Happy Path: Order Successfully Persisted & Stock Deducted Atomically
+      if (rpcData.success !== true) {
+        console.error('CRITICAL: Unexpected RPC failure state:', rpcData);
+        return res.status(500).json({ error: 'Order processing failed. Webhook retry scheduled.' });
+      }
+
+      const effectiveOrderId = rpcData.order_id || orderId;
+
+      // 8. Dispatch Customer Receipt & Merchant Notification
       if (customerEmail) {
         const itemsHtml = items.map(i => `
           <tr>
@@ -281,7 +310,8 @@ const handler = async (req, res) => {
               email_status: 'sent',
               resend_id: emailResult.id || null,
               email_sent_at: new Date().toISOString(),
-              email_attempts: 1
+              email_attempts: 1,
+              email_last_error: null
             }).eq('id', effectiveOrderId);
           } else {
             await supabase.from('orders').update({
@@ -315,11 +345,11 @@ const handler = async (req, res) => {
         );
       }
 
-      console.log(`Order ${effectiveOrderId} successfully processed for ${customerEmail} ($${totalAmount})`);
+      console.log(`Order ${effectiveOrderId} successfully processed atomically for ${customerEmail} ($${totalAmount})`);
       return res.status(200).json({ received: true, orderId: effectiveOrderId });
     } catch (err) {
-      console.error('Error processing order in webhook:', err);
-      return res.status(500).json({ error: 'Failed to process order' });
+      console.error('Unhandled error processing order in webhook:', err);
+      return res.status(500).json({ error: 'Failed to process order. Webhook retry scheduled.' });
     }
   }
 

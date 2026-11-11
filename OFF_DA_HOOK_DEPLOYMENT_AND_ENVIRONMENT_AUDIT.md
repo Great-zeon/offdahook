@@ -56,3 +56,4 @@ To guarantee safe, dependable e-commerce operations, the backend serverless func
 1. **Commit Alignment**: Verified via HTTP response headers and SHA comparisons that `https://offdahook.vercel.app/` serves commit `c251c05` with zero drift.
 2. **Preloader & Video Backgrounds**: Storefront preloader, video hero, and luxury styling (#FF539B, #0F0B15) load instantly across all devices.
 3. **Cart Persistence**: Cart state is managed client-side via `localStorage['odh_cart']` and synced with UI counters without interfering with browser cache.
+

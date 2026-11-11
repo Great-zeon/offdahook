@@ -57,3 +57,4 @@ The full verification suite consists of 14 audit reports available in the projec
 
 ## 4. Next Step
 Follow [`OFF_DA_HOOK_SAFE_MIGRATION_AND_TEST_PURCHASE_RUNBOOK.md`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_SAFE_MIGRATION_AND_TEST_PURCHASE_RUNBOOK.md) to execute the migration in Supabase SQL Editor and perform the initial test transaction.
+

@@ -87,3 +87,4 @@ The adversarial audit mandated an honest assessment of serverless rate-limiting 
 
 ### Security Verdict
 **CERTIFIED AS PRODUCTION-SECURE.** Admin endpoints are protected by signed, expiring HMAC session tokens, customer PII is shielded by PostgreSQL RLS, and client price tampering is impossible.
+

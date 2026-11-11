@@ -116,3 +116,4 @@ Once Phase 1 through 3 pass with 100% compliance:
 4. Perform 1 live $1.00 or $15.00 test purchase using a personal card to confirm end-to-end banking settlement.
 5. In Stripe Dashboard, immediately refund the test charge.
 6. The store is officially ready for live public orders.
+

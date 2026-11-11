@@ -3258,10 +3258,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const res = await fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`);
           const data = await res.json();
 
-          if (data && data.success && data.verified && data.order) {
+          if (data && data.success && data.verified) {
             localStorage.removeItem(STORAGE_KEY_CART);
             updateBadges();
-            showOrderConfirmation(data.order);
+
+            if (data.order_persisted && data.order) {
+              showOrderConfirmation(data.order);
+            } else {
+              showPendingOrderConfirmation(data);
+            }
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
             alert('Your checkout session could not be verified by Stripe. If your card was charged, please contact the salon at (347) 238-1602.');
@@ -3273,6 +3278,50 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Your checkout was cancelled. Your items have been saved in your crown bag.');
         window.history.replaceState({}, document.title, window.location.pathname);
       }
+    }
+
+    function showPendingOrderConfirmation(data) {
+      let modal = document.getElementById('clientOrderPendingModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'clientOrderPendingModal';
+        modal.className = 'admin-modal-overlay';
+        modal.innerHTML = `
+          <div class="admin-modal-card" style="max-width:540px; text-align:center;">
+            <div style="width:54px; height:54px; border-radius:50%; background:rgba(245,158,11,0.15); color:#F59E0B; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <h3 style="font-size:22px; font-weight:800; color:#FFFFFF; margin-bottom:8px;">Payment Verified!</h3>
+            <p style="font-size:14px; color:#A39EB2; margin-bottom:16px;">
+              Your payment has been successfully confirmed by Stripe. Your order is finalizing in our salon fulfillment system.
+            </p>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:16px; text-align:left; font-size:13px; margin-bottom:20px;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <span style="color:#8E8A9F;">Stripe Reference:</span>
+                <span style="color:#FFFFFF; font-family:monospace;" id="pendingSessionRef"></span>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-weight:700;">
+                <span style="color:#8E8A9F;">Total Verified:</span>
+                <span style="color:var(--pink-light);" id="pendingTotalPaid"></span>
+              </div>
+            </div>
+            <p style="font-size:12px; color:#8E8A9F; margin-bottom:20px;">
+              Your confirmation receipt is being sent to your email. If you need immediate assistance, call Master Stylist Shawnese Parker directly at (347) 238-1602.
+            </p>
+            <button type="button" class="btn-action-solid" style="width:100%; justify-content:center;" id="closePendingOrderBtn">
+              Return to Off Da Hook
+            </button>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('closePendingOrderBtn').addEventListener('click', () => {
+          modal.classList.remove('active');
+        });
+      }
+
+      document.getElementById('pendingSessionRef').textContent = (data.session_id || '').slice(-12);
+      document.getElementById('pendingTotalPaid').textContent = `$${parseFloat(data.amount_total || 0).toFixed(2)} USD`;
+      modal.classList.add('active');
     }
 
     function showOrderConfirmation(order) {

@@ -63,3 +63,4 @@ All application code, API handlers, stored procedures, and fallback reconciliati
 ## 4. Sign-Off Gate
 
 Production transactions must remain disabled until ACT-01, ACT-02, and ACT-03 are completed and verified by the human developer.
+

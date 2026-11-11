@@ -98,3 +98,4 @@ We verified the behavior of running `schema.sql` repeatedly:
 
 ### Migration Verdict
 **APPROVED AS SAFE AND IDEMPOTENT.** The script does not contain destructive DROP statements and will not overwrite existing salon products or orders. It is ready for execution in the Supabase SQL Editor once human approval is granted.
+

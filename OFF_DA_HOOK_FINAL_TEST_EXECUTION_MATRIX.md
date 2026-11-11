@@ -57,3 +57,4 @@ All 4 blocked tests are strictly waiting for human credentials (`STRIPE_SECRET_K
 | **28** | **MIG-01** | Migration Compatibility | Staging | Run `schema.sql` twice | Non-destructive; idempotent. | Script validated safe. | **BLOCKED** | Awaiting client SQL run |
 | **29** | **SEC-03** | RLS Policies Active | Staging | Anonymous update on `products` | Denied by RLS policy. | RLS blocks anon writes. | **PASS** | `schema.sql:155-170` |
 | **30** | **DEP-01** | Production Vercel Config | Live Edge | Inspect headers & route bindings | Zero route mismatches. | All endpoints live on edge. | **PASS** | Live deployment probe |
+
