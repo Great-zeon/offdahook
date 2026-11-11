@@ -3319,7 +3319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      document.getElementById('pendingSessionRef').textContent = (data.session_id || '').slice(-12);
+      document.getElementById('pendingSessionRef').textContent = data.session_ref || (data.session_id || '').slice(-12);
       document.getElementById('pendingTotalPaid').textContent = `$${parseFloat(data.amount_total || 0).toFixed(2)} USD`;
       modal.classList.add('active');
     }

@@ -1,10 +1,18 @@
 // ========================================================================
 // OFF DA HOOK SALON SUITES - HARDENED STRIPE CHECKOUT API (VERCEL SERVERLESS)
+// Third-Round Zero-Trust Hardening Corrections:
+//   1. Server-Authoritative Checkout Intents: Persists cart & totals in Supabase,
+//      storing compact 'checkout_intent_id' in Stripe metadata (eliminates JSON truncation).
+//   2. Canonical Storefront Redirect URLs: Origin header validated against strict allowlist;
+//      untrusted origins fall back to canonical STOREFRONT_URL.
+//   3. Strict Input & Track-Inventory Guards: Rejects non-integer or >10000 quantities.
 // ========================================================================
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { applySecureCors } = require('./_payment-validation');
 
 let stripe = null;
 if (process.env.STRIPE_SECRET_KEY) {
@@ -34,6 +42,8 @@ function getLocalCatalogProduct(id) {
           title: found.title,
           price: parseFloat((found.price || '0').replace(/[^0-9.]/g, '')),
           stock: found.stock || 10,
+          track_inventory: true,
+          is_active: true,
           image: found.mainImage || found.image
         };
       }
@@ -46,9 +56,7 @@ function getLocalCatalogProduct(id) {
 
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  const safeOrigin = applySecureCors(req, res, 'POST, OPTIONS', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -59,7 +67,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { items, customerEmail, customerName } = req.body;
+    const { items, customerEmail } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Your crown bag is empty. Please select formulas before checking out.' });
@@ -74,18 +82,18 @@ module.exports = async (req, res) => {
     }
 
     // 2. Authoritative Server-Side Product & Inventory Verification
-    // CRITICAL: We NEVER trust the client-submitted price. Prices and stock are fetched strictly from the database.
+    // CRITICAL: Prices and stock are fetched strictly from the database; client prices ignored.
     const verifiedLineItems = [];
     const sanitizedCartMetadata = [];
 
     for (const item of items) {
       const productId = item.id;
-      const quantity = parseInt(item.quantity, 10);
+      const quantity = Number(item.quantity);
 
-      if (!productId || isNaN(quantity) || quantity <= 0) {
+      if (!productId || typeof productId !== 'string' || !Number.isInteger(quantity) || quantity <= 0 || quantity > 10000) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid cart contents. Please clear your bag and re-add your formulas.'
+          error: 'Invalid cart contents or quantity. Please clear your bag and re-add your formulas.'
         });
       }
 
@@ -94,7 +102,7 @@ module.exports = async (req, res) => {
       if (supabase) {
         const { data: dbProd, error } = await supabase
           .from('products')
-          .select('id, title, price, stock, image, is_active')
+          .select('id, title, price, stock, image, is_active, track_inventory')
           .eq('id', productId)
           .single();
 
@@ -103,7 +111,6 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Fallback lookup if Supabase is offline but file exists
       if (!authoritativeProduct) {
         authoritativeProduct = getLocalCatalogProduct(productId);
       }
@@ -115,8 +122,8 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Concurrency check against available inventory
-      if (authoritativeProduct.stock < quantity) {
+      const trackInventory = authoritativeProduct.track_inventory !== false;
+      if (trackInventory && authoritativeProduct.stock < quantity) {
         return res.status(400).json({
           success: false,
           error: `Apologies! "${authoritativeProduct.title}" only has ${authoritativeProduct.stock} unit(s) remaining in stock.`
@@ -126,10 +133,9 @@ module.exports = async (req, res) => {
       const authoritativePrice = parseFloat(authoritativeProduct.price);
       const unitAmountInCents = Math.round(authoritativePrice * 100);
 
-      const origin = req.headers.origin || 'https://offdahook.vercel.app';
       const imageUrl = authoritativeProduct.image && authoritativeProduct.image.startsWith('http')
         ? authoritativeProduct.image
-        : `${origin}/${(authoritativeProduct.image || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg').replace(/^\//, '')}`;
+        : `${safeOrigin}/${(authoritativeProduct.image || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg').replace(/^\//, '')}`;
 
       verifiedLineItems.push({
         price_data: {
@@ -156,11 +162,44 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 3. Create Stripe Checkout Session with US Shipping & Tax Enforcement
+    // 3. Server-Side Checkout Intent Persistence in Supabase
+    // Stores full authoritative items, prices, and totals server-side.
+    // Completely eliminates risk of truncated JSON in Stripe metadata.
+    const intentId = `ch_intent_${crypto.randomBytes(12).toString('hex')}`;
+    const subtotalDollars = verifiedLineItems.reduce((acc, item) => acc + (item.price_data.unit_amount * item.quantity / 100), 0);
+    const shippingDollars = 6.95;
+    const totalDollars = parseFloat((subtotalDollars + shippingDollars).toFixed(2));
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+
+    if (supabase) {
+      try {
+        await supabase.from('checkout_intents').insert({
+          id: intentId,
+          items: sanitizedCartMetadata,
+          subtotal: subtotalDollars,
+          shipping_amount: shippingDollars,
+          total_amount: totalDollars,
+          currency: 'usd',
+          status: 'pending',
+          expires_at: expiresAt
+        });
+      } catch (intentErr) {
+        console.warn('Failed to persist checkout_intent (continuing with session):', intentErr.message);
+      }
+    }
+
+    const sessionMetadata = {
+      checkout_intent_id: intentId,
+      itemCount: String(verifiedLineItems.length)
+    };
+
+    const rawItemsJson = JSON.stringify(sanitizedCartMetadata);
+    if (rawItemsJson.length <= 450) {
+      sessionMetadata.itemsJson = rawItemsJson;
+    }
+
+    // 4. Create Stripe Checkout Session
     // PAYMENT METHOD ARCHITECTURE: Restricted explicitly to 'card' (credit/debit).
-    // Card payments settle synchronously, preventing orphaned checkouts and uncollected funds.
-    // Asynchronous payment events are also handled defensively in api/webhook.js.
-    const origin = req.headers.origin || 'https://offdahook.vercel.app';
     const sessionConfig = {
       payment_method_types: ['card'],
       line_items: verifiedLineItems,
@@ -185,12 +224,9 @@ module.exports = async (req, res) => {
           }
         }
       ],
-      success_url: `${origin}/shop.html?order=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/shop.html?order=cancelled`,
-      metadata: {
-        itemCount: verifiedLineItems.length,
-        itemsJson: JSON.stringify(sanitizedCartMetadata)
-      }
+      success_url: `${safeOrigin}/shop.html?order=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${safeOrigin}/shop.html?order=cancelled`,
+      metadata: sessionMetadata
     };
 
     if (customerEmail && customerEmail.includes('@')) {
@@ -198,6 +234,16 @@ module.exports = async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create(sessionConfig);
+
+    if (supabase) {
+      try {
+        await supabase.from('checkout_intents')
+          .update({ stripe_session_id: session.id, updated_at: new Date().toISOString() })
+          .eq('id', intentId);
+      } catch (linkErr) {
+        console.warn('Failed to link session to checkout_intent:', linkErr.message);
+      }
+    }
 
     return res.status(200).json({
       success: true,

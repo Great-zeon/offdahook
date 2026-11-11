@@ -12,7 +12,7 @@
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
-const { validateStripeSession, maskEmail } = require('./_payment-validation');
+const { applySecureCors, validateStripeSession, maskEmail } = require('./_payment-validation');
 
 let stripe = null;
 if (process.env.STRIPE_SECRET_KEY) {
@@ -29,29 +29,15 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
   );
 }
 
-// Allowed storefront origins for CORS
-const ALLOWED_ORIGINS = [
-  'https://offdahook.vercel.app',
-  'https://www.offdahookhairsalon.com',
-  'https://offdahookhairsalon.com'
-];
-
 module.exports = async (req, res) => {
-  // 1. CORS Configuration
-  const requestOrigin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.includes(requestOrigin) || requestOrigin.startsWith('http://localhost:')) {
-    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', 'https://offdahook.vercel.app');
-  }
+  // 1. Origin-Constrained CORS Configuration
+  applySecureCors(req, res, 'GET, OPTIONS', 'Content-Type');
 
   // 2. Strict Anti-Caching Headers
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -85,10 +71,27 @@ module.exports = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Checkout session not found' });
     }
 
-    // 5. Shared Strict Payment Validation (Identical to Webhook)
+    // 5. Authoritative Checkout Intent & Shared Strict Payment Validation
+    let authoritativeIntent = null;
+    if (session.metadata?.checkout_intent_id && supabase) {
+      try {
+        const { data: intent } = await supabase
+          .from('checkout_intents')
+          .select('*')
+          .eq('id', session.metadata.checkout_intent_id)
+          .maybeSingle();
+
+        if (intent) {
+          authoritativeIntent = intent;
+        }
+      } catch (intentErr) {
+        console.warn('Failed to fetch checkout_intent in verify-session:', intentErr.message);
+      }
+    }
+
     let validatedSession;
     try {
-      validatedSession = validateStripeSession(session);
+      validatedSession = validateStripeSession(session, { intent: authoritativeIntent });
     } catch (valErr) {
       return res.status(400).json({
         success: false,

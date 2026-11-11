@@ -4,6 +4,7 @@
 // ========================================================================
 const { createClient } = require('@supabase/supabase-js');
 const { verifyToken } = require('./auth');
+const { applySecureCors } = require('./_payment-validation');
 const https = require('https');
 
 let supabase = null;
@@ -60,9 +61,8 @@ async function sendResendEmail(to, subject, htmlContent) {
 
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Cache-Control', 'no-store');
+  applySecureCors(req, res, 'GET, PUT, OPTIONS', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();

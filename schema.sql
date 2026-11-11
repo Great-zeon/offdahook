@@ -1,18 +1,20 @@
 -- ========================================================================
--- OFF DA HOOK SALON SUITES - PRODUCTION DATABASE SCHEMA (SECOND-ROUND REMEDIATION)
+-- OFF DA HOOK SALON SUITES - PRODUCTION DATABASE SCHEMA (THIRD-ROUND HARDENING)
 -- PostgreSQL / Supabase Schema with Row Level Security & Atomic Concurrency
 -- Fully Idempotent Migration Script: Safe to execute on new or existing DBs
--- Second-Round Remediation Corrections:
---   1. Durable Webhook Failure Logging: Independent procedure 'record_webhook_failure'
---      records failures outside the rolled-back order transaction.
---   2. Precise Unique Constraint Handling: Dissects constraint name via
---      GET STACKED DIAGNOSTICS. Non-session collisions (e.g. order ID) are NOT treated as duplicates.
---   3. Individual Item Quantity Validation: Every raw item is validated for positive integer
---      bounds (1-10000) BEFORE aggregation; negative and decimal quantities are strictly rejected.
---   4. Deterministic Deadlock Prevention: Multi-item product row locks acquired in alphabetical order.
---   5. Idempotent Migration Safety: Safely verifies and creates unique index on stripe_session_id
---      without dropping data or silently skipping constraint application.
---   6. Merchant Notification Audit Columns: Tracks merchant alert status directly in orders table.
+-- Third-Round Zero-Trust Hardening Corrections:
+--   1. Strict Catalog Validation: Rejects unknown and inactive products at DB layer;
+--      verifies every submitted ID exists, is active, and respects track_inventory.
+--   2. In-Flight Concurrency & Safe Leases: Active in-flight events return in_flight: true
+--      with null order_id (never false duplicate: true). Leases expire after 30s.
+--   3. External Payment Reference Integrity: Migration NEVER rewrites historical Stripe
+--      session IDs. It detects duplicates and halts with a diagnostic report.
+--   4. Durable Notification Outbox: Creates 'order_notifications' table to guarantee
+--      recoverable, retryable merchant and customer notification delivery.
+--   5. Server-Authoritative Checkout Intents: Creates 'checkout_intents' table for
+--      server-side cart, price, and total storage (eliminates truncated JSON metadata).
+--   6. Immutable Completed Event Protection: record_webhook_failure preserves completed
+--      lifecycle states and will never overwrite an event with a committed order.
 -- ========================================================================
 
 -- Enable UUID extension
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS products (
   title TEXT NOT NULL,
   price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
   stock INTEGER NOT NULL DEFAULT 10,
+  track_inventory BOOLEAN NOT NULL DEFAULT TRUE,
   category TEXT,
   volume TEXT,
   image TEXT,
@@ -34,6 +37,10 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Idempotently add track_inventory column if table pre-existed
+ALTER TABLE products ADD COLUMN IF NOT EXISTS track_inventory BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- Ensure non-negative stock and price constraints
 ALTER TABLE products DROP CONSTRAINT IF EXISTS check_stock_non_negative;
@@ -70,6 +77,7 @@ CREATE TABLE IF NOT EXISTS orders (
   merchant_alert_sent BOOLEAN NOT NULL DEFAULT FALSE,
   merchant_alert_status TEXT NOT NULL DEFAULT 'pending',
   merchant_alert_error TEXT,
+  notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -91,24 +99,36 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS email_attempts INTEGER NOT NULL DEFA
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS merchant_alert_sent BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS merchant_alert_status TEXT NOT NULL DEFAULT 'pending';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS merchant_alert_error TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
--- Safe Unique Index Migration for stripe_session_id on existing databases
+-- ------------------------------------------------------------------------
+-- Safe Unique Index Migration for stripe_session_id
+-- ZERO FABRICATED IDENTIFIERS: Never rewrites historical Stripe session IDs.
+-- Detects duplicates, halts migration safely with diagnostic details.
+-- ------------------------------------------------------------------------
 DO $$
+DECLARE
+  v_dup_count INTEGER := 0;
+  v_dup_records TEXT := '';
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_indexes 
     WHERE tablename = 'orders' AND indexname = 'idx_orders_stripe_session_uniq'
   ) THEN
-    -- Check for existing duplicate session IDs
-    IF EXISTS (
-      SELECT stripe_session_id 
-      FROM orders 
-      WHERE stripe_session_id IS NOT NULL 
-      GROUP BY stripe_session_id 
+    -- Check for duplicate non-null stripe_session_id values
+    SELECT COUNT(*), string_agg(format('Session %s in orders: [%s]', stripe_session_id, order_ids), E'\n')
+    INTO v_dup_count, v_dup_records
+    FROM (
+      SELECT stripe_session_id, string_agg(id, ', ') AS order_ids
+      FROM orders
+      WHERE stripe_session_id IS NOT NULL
+      GROUP BY stripe_session_id
       HAVING COUNT(*) > 1
-    ) THEN
-      RAISE WARNING 'CRITICAL: Duplicate non-null stripe_session_id values detected in orders. Unique index creation deferred until manual deduplication.';
+    ) dups;
+
+    IF v_dup_count > 0 THEN
+      RAISE EXCEPTION E'MIGRATION BLOCKED: Detected % duplicate Stripe session ID(s) in orders table.\nHistorical payment references must NOT be rewritten or fabricated.\nAffected records:\n%\nManual reconciliation required before creating unique index.', v_dup_count, v_dup_records;
     ELSE
       CREATE UNIQUE INDEX idx_orders_stripe_session_uniq ON orders(stripe_session_id) WHERE stripe_session_id IS NOT NULL;
     END IF;
@@ -146,8 +166,65 @@ CREATE INDEX IF NOT EXISTS idx_webhook_events_session ON webhook_events(stripe_s
 CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status);
 
 -- ------------------------------------------------------------------------
--- 4. Dedicated Stored Procedure: Record Webhook Failure Durably
--- Executed outside the rolled-back order transaction to guarantee failure observability
+-- 4. Server-Authoritative Checkout Intents Table
+-- Eliminates client-truncated JSON metadata from Stripe checkout sessions
+-- ------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS checkout_intents (
+  id TEXT PRIMARY KEY,
+  items JSONB NOT NULL,
+  subtotal NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+  shipping_amount NUMERIC(10, 2) NOT NULL DEFAULT 6.95,
+  total_amount NUMERIC(10, 2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'usd',
+  stripe_session_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled', 'expired')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE checkout_intents ADD COLUMN IF NOT EXISTS stripe_session_id TEXT;
+ALTER TABLE checkout_intents ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+
+CREATE INDEX IF NOT EXISTS idx_checkout_intents_session ON checkout_intents(stripe_session_id);
+CREATE INDEX IF NOT EXISTS idx_checkout_intents_status ON checkout_intents(status, expires_at);
+
+-- ------------------------------------------------------------------------
+-- 5. Durable Notification Outbox Table
+-- Ensures merchant alerts and customer receipts can be monitored and retried safely
+-- ------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS order_notifications (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  notification_type TEXT NOT NULL CHECK (notification_type IN (
+    'merchant_order_alert',
+    'customer_order_receipt',
+    'merchant_shortfall_alert',
+    'customer_backorder_notice'
+  )),
+  recipient TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  html_body TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN (
+    'queued', 'processing', 'accepted', 'delivered', 'failed', 'retrying'
+  )),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 5,
+  last_attempt_at TIMESTAMPTZ,
+  next_retry_at TIMESTAMPTZ,
+  provider_message_id TEXT,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_notifications_order_id ON order_notifications(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_notifications_status ON order_notifications(status, next_retry_at);
+
+-- ------------------------------------------------------------------------
+-- 6. Dedicated Stored Procedure: Record Webhook Failure Durably
+-- Executed outside the rolled-back order transaction to guarantee failure observability.
+-- PROTECTED: Will never overwrite a completed event or an event with a committed order.
 -- ------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION record_webhook_failure(
   p_event_id TEXT,
@@ -160,26 +237,65 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+  v_current_status TEXT;
+  v_existing_order_id TEXT;
 BEGIN
   IF p_event_id IS NULL OR btrim(p_event_id) = '' THEN
     RETURN;
   END IF;
 
+  -- 1. Check if this webhook event has already been completed
+  SELECT status INTO v_current_status
+  FROM webhook_events
+  WHERE id = p_event_id;
+
+  IF v_current_status = 'completed' THEN
+    -- Strictly preserve completed lifecycle. Never overwrite completed state.
+    RETURN;
+  END IF;
+
+  -- 2. Check if a persisted order already exists for this Stripe session
+  IF p_session_id IS NOT NULL AND btrim(p_session_id) != '' THEN
+    SELECT id INTO v_existing_order_id
+    FROM orders
+    WHERE stripe_session_id = p_session_id
+    LIMIT 1;
+
+    IF v_existing_order_id IS NOT NULL THEN
+      -- Order is already committed in database. Do not record as failed!
+      UPDATE webhook_events
+      SET status = 'completed',
+          processed_at = COALESCE(processed_at, NOW()),
+          last_attempt_at = NOW()
+      WHERE id = p_event_id;
+      RETURN;
+    END IF;
+  END IF;
+
+  -- 3. Sanitize and record failure without touching completed events
   INSERT INTO webhook_events (
     id, stripe_session_id, event_type, status, received_at, last_attempt_at, attempt_count, last_error
   ) VALUES (
     p_event_id, p_session_id, COALESCE(p_event_type, 'checkout.session.completed'), 'failed', NOW(), NOW(), 1, p_error
   )
   ON CONFLICT (id) DO UPDATE SET
-    status = 'failed',
-    last_error = p_error,
+    status = CASE
+      WHEN webhook_events.status = 'completed' THEN 'completed'
+      ELSE 'failed'
+    END,
+    last_error = CASE
+      WHEN webhook_events.status = 'completed' THEN webhook_events.last_error
+      ELSE EXCLUDED.last_error
+    END,
     last_attempt_at = NOW(),
-    attempt_count = webhook_events.attempt_count + 1;
+    attempt_count = webhook_events.attempt_count + 1
+  WHERE webhook_events.status <> 'completed';
 END;
 $$;
 
 -- ------------------------------------------------------------------------
--- 5. Corrected Unified Atomic Order & Inventory Transaction Procedure
+-- 7. Corrected Unified Atomic Order & Inventory Transaction Procedure
 -- ------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION process_paid_order_atomic(
   p_order JSONB,
@@ -278,13 +394,14 @@ BEGIN
     RETURN jsonb_build_object(
       'success', FALSE,
       'duplicate', TRUE,
+      'in_flight', FALSE,
       'order_id', v_existing_order_id,
       'message', 'Order for this Stripe checkout session has already been processed.'
     );
   END IF;
 
   -- ======================================================================
-  -- D. Webhook Event Lock & Lifecycle State
+  -- D. Webhook Event Lock & In-Flight Concurrency Lease Management
   -- ======================================================================
   IF p_event_id IS NOT NULL AND btrim(p_event_id) != '' THEN
     SELECT * INTO v_existing_event
@@ -294,18 +411,29 @@ BEGIN
 
     IF v_existing_event.id IS NOT NULL THEN
       IF v_existing_event.status = 'completed' THEN
+        SELECT id INTO v_existing_order_id
+        FROM orders
+        WHERE stripe_session_id = v_stripe_session_id
+        LIMIT 1;
+
         RETURN jsonb_build_object(
           'success', FALSE,
           'duplicate', TRUE,
+          'in_flight', FALSE,
+          'order_id', v_existing_order_id,
           'message', 'Webhook event has already been completed.'
         );
       ELSIF v_existing_event.status = 'processing' AND v_existing_event.last_attempt_at > NOW() - INTERVAL '30 seconds' THEN
+        -- Active in-flight processing lease: Signal retryable in-flight state (NEVER false duplicate 200)
         RETURN jsonb_build_object(
           'success', FALSE,
+          'duplicate', FALSE,
           'in_flight', TRUE,
-          'message', 'Webhook event is currently being processed by another worker.'
+          'order_id', NULL,
+          'message', 'Webhook event is currently in flight under an active processing lease.'
         );
       ELSE
+        -- Stale lease (>30s) or prior failure: Reclaim lease safely
         UPDATE webhook_events
         SET attempt_count = attempt_count + 1,
             last_attempt_at = NOW(),
@@ -319,8 +447,8 @@ BEGIN
   END IF;
 
   -- ======================================================================
-  -- E. Deterministic Row-Locking & Stock Availability Pre-Check
-  -- Locks rows in alphabetical ORDER BY id to eliminate concurrent deadlocks
+  -- E. Deterministic Row-Locking & Catalog Validation
+  -- Validates every product exists, is active, and acquires locks in alphabetical ORDER BY id
   -- ======================================================================
   FOR v_item IN
     SELECT x.id, SUM(x.qty)::INT AS total_qty
@@ -328,21 +456,24 @@ BEGIN
     GROUP BY x.id
     ORDER BY x.id ASC -- Deterministic deadlock prevention
   LOOP
-    SELECT id, title, price, stock, is_active
+    SELECT id, title, price, stock, is_active, track_inventory
     INTO v_prod
     FROM products
     WHERE id = v_item.id
     FOR UPDATE;
 
-    IF v_prod.id IS NULL THEN
+    -- Strict validation: Must exist in catalog
+    IF NOT FOUND THEN
       RAISE EXCEPTION 'Product % does not exist in salon catalog', v_item.id;
     END IF;
 
+    -- Strict validation: Must be active for purchase
     IF v_prod.is_active = FALSE THEN
       RAISE EXCEPTION 'Product % (%) is currently inactive', v_item.id, v_prod.title;
     END IF;
 
-    IF v_prod.stock < v_item.total_qty THEN
+    -- Stock check if inventory tracking is enabled
+    IF v_prod.track_inventory AND v_prod.stock < v_item.total_qty THEN
       v_has_shortfall := TRUE;
       v_shortfall_items := v_shortfall_items || jsonb_build_object(
         'product_id', v_item.id,
@@ -357,13 +488,14 @@ BEGIN
   -- F. Inventory Shortfall Exception Handling
   -- Customer paid on Stripe. Zero stock is deducted (eliminates partial deductions).
   -- Order is safely stored as 'Backordered_Action_Required' for merchant intervention.
+  -- Atomically queues merchant shortfall notification into outbox.
   -- ======================================================================
   IF v_has_shortfall THEN
     INSERT INTO orders (
       id, stripe_session_id, customer_name, customer_email,
       customer_phone, shipping_address, items, subtotal,
       total_amount, payment_status, payment_method, fulfillment_status,
-      email_receipt_sent, email_status, email_last_error, created_at, updated_at
+      email_receipt_sent, email_status, email_last_error, notes, created_at, updated_at
     ) VALUES (
       v_order_id,
       v_stripe_session_id,
@@ -380,9 +512,47 @@ BEGIN
       FALSE,
       'pending',
       'Inventory shortfall detected during processing. Flagged for merchant fulfillment or refund.',
+      'INVENTORY SHORTFALL: One or more requested items exceeded stock.',
       NOW(),
       NOW()
     );
+
+    -- Queue Durable Notification: Merchant Shortfall Alert
+    INSERT INTO order_notifications (
+      id, order_id, notification_type, recipient, subject, html_body, status, created_at, updated_at
+    ) VALUES (
+      'notif_' || gen_random_uuid(),
+      v_order_id,
+      'merchant_shortfall_alert',
+      'offdahooksalon@gmail.com',
+      '⚠️ ACTION REQUIRED: Inventory Shortfall on Order ' || v_order_id,
+      'One or more items in paid order ' || v_order_id || ' exceeded available inventory.',
+      'queued',
+      NOW(),
+      NOW()
+    );
+
+    -- Queue Durable Notification: Customer Backorder Notice (if email provided)
+    IF p_order->>'customer_email' IS NOT NULL AND btrim(p_order->>'customer_email') != '' THEN
+      INSERT INTO order_notifications (
+        id, order_id, notification_type, recipient, subject, html_body, status, created_at, updated_at
+      ) VALUES (
+        'notif_' || gen_random_uuid(),
+        v_order_id,
+        'customer_backorder_notice',
+        p_order->>'customer_email',
+        'Important Update Regarding Your Off Da Hook Order ' || v_order_id,
+        'Thank you for your order. One or more items in order ' || v_order_id || ' are currently on backorder.',
+        'queued',
+        NOW(),
+        NOW()
+      );
+    END IF;
+
+    -- Complete checkout intent if linked
+    UPDATE checkout_intents
+    SET status = 'completed', updated_at = NOW()
+    WHERE stripe_session_id = v_stripe_session_id;
 
     IF p_event_id IS NOT NULL AND btrim(p_event_id) != '' THEN
       UPDATE webhook_events
@@ -414,7 +584,7 @@ BEGIN
     UPDATE products
     SET stock = stock - v_item.total_qty,
         updated_at = NOW()
-    WHERE id = v_item.id;
+    WHERE id = v_item.id AND track_inventory = TRUE;
   END LOOP;
 
   INSERT INTO orders (
@@ -440,6 +610,43 @@ BEGIN
     NOW(),
     NOW()
   );
+
+  -- Queue Durable Notification: Merchant Order Alert
+  INSERT INTO order_notifications (
+    id, order_id, notification_type, recipient, subject, html_body, status, created_at, updated_at
+  ) VALUES (
+    'notif_' || gen_random_uuid(),
+    v_order_id,
+    'merchant_order_alert',
+    'offdahooksalon@gmail.com',
+    '📦 New Order to Fulfill: ' || v_order_id,
+    'A new order was placed and verified.',
+    'queued',
+    NOW(),
+    NOW()
+  );
+
+  -- Queue Durable Notification: Customer Order Receipt (if email provided)
+  IF p_order->>'customer_email' IS NOT NULL AND btrim(p_order->>'customer_email') != '' THEN
+    INSERT INTO order_notifications (
+      id, order_id, notification_type, recipient, subject, html_body, status, created_at, updated_at
+    ) VALUES (
+      'notif_' || gen_random_uuid(),
+      v_order_id,
+      'customer_order_receipt',
+      p_order->>'customer_email',
+      'Your Off Da Hook Order ' || v_order_id || ' Confirmation',
+      'Your order has been confirmed.',
+      'queued',
+      NOW(),
+      NOW()
+    );
+  END IF;
+
+  -- Complete checkout intent if linked
+  UPDATE checkout_intents
+  SET status = 'completed', updated_at = NOW()
+  WHERE stripe_session_id = v_stripe_session_id;
 
   IF p_event_id IS NOT NULL AND btrim(p_event_id) != '' THEN
     UPDATE webhook_events
@@ -470,6 +677,7 @@ EXCEPTION
         RETURN jsonb_build_object(
           'success', FALSE,
           'duplicate', TRUE,
+          'in_flight', FALSE,
           'order_id', v_existing_order_id,
           'message', 'Order for this Stripe session already exists.'
         );
@@ -480,6 +688,7 @@ EXCEPTION
       RETURN jsonb_build_object(
         'success', FALSE,
         'duplicate', TRUE,
+        'in_flight', FALSE,
         'message', 'Webhook event ID has already been recorded.'
       );
     END IF;
@@ -492,7 +701,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------
--- 6. Individual Stock Deduction Procedure
+-- 8. Individual Stock Deduction Procedure
 -- ------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION deduct_product_stock_atomic(p_id TEXT, p_quantity INTEGER)
 RETURNS BOOLEAN
@@ -510,7 +719,7 @@ BEGIN
   UPDATE products
   SET stock = stock - p_quantity,
       updated_at = NOW()
-  WHERE id = p_id AND stock >= p_quantity AND is_active = TRUE;
+  WHERE id = p_id AND stock >= p_quantity AND is_active = TRUE AND track_inventory = TRUE;
 
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   RETURN v_updated > 0;
@@ -518,7 +727,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------
--- 7. Function Execution Permissions (SECURITY DEFINER Hardening)
+-- 9. Function Execution Permissions (SECURITY DEFINER Hardening)
 -- Revoke PUBLIC/anon/authenticated execution; grant exclusively to service_role
 -- ------------------------------------------------------------------------
 REVOKE EXECUTE ON FUNCTION record_webhook_failure(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
@@ -531,11 +740,13 @@ REVOKE EXECUTE ON FUNCTION deduct_product_stock_atomic(TEXT, INTEGER) FROM PUBLI
 GRANT EXECUTE ON FUNCTION deduct_product_stock_atomic(TEXT, INTEGER) TO service_role;
 
 -- ------------------------------------------------------------------------
--- 8. Row Level Security Policies
+-- 10. Row Level Security Policies
 -- ------------------------------------------------------------------------
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkout_intents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_notifications ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public can view active products" ON products;
 CREATE POLICY "Public can view active products" ON products
@@ -553,21 +764,29 @@ DROP POLICY IF EXISTS "Service role full access webhook_events" ON webhook_event
 CREATE POLICY "Service role full access webhook_events" ON webhook_events
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role full access checkout_intents" ON checkout_intents;
+CREATE POLICY "Service role full access checkout_intents" ON checkout_intents
+  FOR ALL USING (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Service role full access order_notifications" ON order_notifications;
+CREATE POLICY "Service role full access order_notifications" ON order_notifications
+  FOR ALL USING (auth.role() = 'service_role');
+
 -- ------------------------------------------------------------------------
--- 9. Catalog Seed Data (Preserves Existing Records via ON CONFLICT)
+-- 11. Catalog Seed Data (Preserves Existing Records via ON CONFLICT)
 -- ------------------------------------------------------------------------
-INSERT INTO products (id, title, price, stock, category, volume, image, description)
+INSERT INTO products (id, title, price, stock, track_inventory, category, volume, image, description)
 VALUES
-  ('loc-buffet-bundle-package', 'Loc Buffet Bundle Package', 99.99, 12, 'locs bundles', '5-Piece Set + Satin Bonnet', 'assets/shop/loc-buffet-bundle-package-enhanced.jpg', 'Complete maintenance suite: Shampoo, Conditioner, Aloe Rose Spritzer, Loc Butta Sauce, Xxxtra Regrowth Serum, and Luxury Satin Bonnet.'),
-  ('xxxtra-strength-regrowth-serum', 'Xxxtra Strength Regrowth Serum', 25.00, 24, 'regrowth', '4 oz Dropper', 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg', 'High-potency botanical infusion engineered to awaken dormant follicles along thinning edges, temples, and crown areas.'),
-  ('anti-itch-dandruff-growth-serum', 'Anti Itch Dandruff Growth Serum', 20.00, 18, 'regrowth locs', '4 oz Dropper', 'assets/shop/anti-itch-dandruff-growth-serum-enhanced.jpg', 'Infused with all-natural therapeutic botanicals to soothe dry, itchy, dandruff-ridden scalps.'),
-  ('control-freak-edge-polish', 'ICY Edge Glaze', 20.00, 30, 'edges styling', '4 oz Jar', 'assets/shop/control-freak-edge-polish-enhanced.jpg', 'Non-flaking, water-resistant formula engineered to sculpt edges and lay down coarse, resistant hair.'),
-  ('grip-and-glide-braid-jam', 'Grip and Glide Braid Jam', 15.00, 20, 'braids locs', '8 oz Jar', 'assets/shop/grip-and-glide-braid-jam-enhanced.jpg', 'Extra-hold conditioning gel formulated specifically for neat parts, stitch braids, and sleek ponytail installations.'),
-  ('aloe-rose-water-spritzer', 'Aloe Rose Water Spritzer', 25.00, 15, 'locs moisture', '8 oz Continuous Mist', 'assets/shop/aloe-rose-water-spritzer-enhanced.jpg', 'Refreshing daily tonic combining organic aloe barbadensis and distilled rose water.'),
-  ('loc-butta-sauce', 'Loc Butta Sauce', 25.00, 14, 'locs moisture', '8 oz Jar', 'assets/shop/loc-butta-sauce-enhanced.jpg', 'Rich plant-butter souffle crafted for retwisting, palm-rolling, and sealing thirsty locs without white film.'),
-  ('citrus-quench-clarifying-shampoo', 'Citrus Quench Clarifying Shampoo', 25.00, 12, 'cleansers', '8 oz Bottle', 'assets/shop/citrus-quench-clarifying-shampoo-enhanced.jpg', 'Sulfate-free chelating cleanse that lifts silicone, product residue, and hard water buildup.'),
-  ('citrus-quench-hydrating-conditioner', 'Citrus Quench Hydrating Conditioner', 25.00, 12, 'cleansers', '8 oz Bottle', 'assets/shop/citrus-quench-hydrating-conditioner-enhanced.jpg', 'High-slip moisture bath enriched with botanical silk proteins for instant detangling.'),
-  ('off-da-hook-oil-drip-comb', 'Off Da Hook Oil Drip Comb', 19.99, 10, 'tools', 'Precision Applicator Tool', 'assets/shop/off-da-hook-oil-drip-comb-enhanced.jpg', 'Ergonomic scalp oil dispenser with roller-ball teeth that distributes serums directly to follicles.'),
-  ('the-children-s-line', 'Perfect Paige''s Unicorn Magic Hair System', 49.99, 8, 'kids bundles', 'Gentle Tear-Free Trio', 'assets/shop/the-children-s-line-enhanced.jpg', 'Ultra-gentle formulation for tender scalps and growing curls. Tear-free hydration.'),
-  ('fully-loaded-regrowth-system', 'Fully Loaded Regrowth System', 100.00, 7, 'bundles regrowth', 'Comprehensive Crown Recovery Kit', 'assets/shop/fully-loaded-regrowth-system-enhanced.jpg', 'The complete professional recovery protocol for severe thinning, edges, and tension damage.')
+  ('loc-buffet-bundle-package', 'Loc Buffet Bundle Package', 99.99, 12, true, 'locs bundles', '5-Piece Set + Satin Bonnet', 'assets/shop/loc-buffet-bundle-package-enhanced.jpg', 'Complete maintenance suite: Shampoo, Conditioner, Aloe Rose Spritzer, Loc Butta Sauce, Xxxtra Regrowth Serum, and Luxury Satin Bonnet.'),
+  ('xxxtra-strength-regrowth-serum', 'Xxxtra Strength Regrowth Serum', 25.00, 24, true, 'regrowth', '4 oz Dropper', 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg', 'High-potency botanical infusion engineered to awaken dormant follicles along thinning edges, temples, and crown areas.'),
+  ('anti-itch-dandruff-growth-serum', 'Anti Itch Dandruff Growth Serum', 20.00, 18, true, 'regrowth locs', '4 oz Dropper', 'assets/shop/anti-itch-dandruff-growth-serum-enhanced.jpg', 'Infused with all-natural therapeutic botanicals to soothe dry, itchy, dandruff-ridden scalps.'),
+  ('control-freak-edge-polish', 'ICY Edge Glaze', 20.00, 30, true, 'edges styling', '4 oz Jar', 'assets/shop/control-freak-edge-polish-enhanced.jpg', 'Non-flaking, water-resistant formula engineered to sculpt edges and lay down coarse, resistant hair.'),
+  ('grip-and-glide-braid-jam', 'Grip and Glide Braid Jam', 15.00, 20, true, 'braids locs', '8 oz Jar', 'assets/shop/grip-and-glide-braid-jam-enhanced.jpg', 'Extra-hold conditioning gel formulated specifically for neat parts, stitch braids, and sleek ponytail installations.'),
+  ('aloe-rose-water-spritzer', 'Aloe Rose Water Spritzer', 25.00, 15, true, 'locs moisture', '8 oz Continuous Mist', 'assets/shop/aloe-rose-water-spritzer-enhanced.jpg', 'Refreshing daily tonic combining organic aloe barbadensis and distilled rose water.'),
+  ('loc-butta-sauce', 'Loc Butta Sauce', 25.00, 14, true, 'locs moisture', '8 oz Jar', 'assets/shop/loc-butta-sauce-enhanced.jpg', 'Rich plant-butter souffle crafted for retwisting, palm-rolling, and sealing thirsty locs without white film.'),
+  ('citrus-quench-clarifying-shampoo', 'Citrus Quench Clarifying Shampoo', 25.00, 12, true, 'cleansers', '8 oz Bottle', 'assets/shop/citrus-quench-clarifying-shampoo-enhanced.jpg', 'Sulfate-free chelating cleanse that lifts silicone, product residue, and hard water buildup.'),
+  ('citrus-quench-hydrating-conditioner', 'Citrus Quench Hydrating Conditioner', 25.00, 12, true, 'cleansers', '8 oz Bottle', 'assets/shop/citrus-quench-hydrating-conditioner-enhanced.jpg', 'High-slip moisture bath enriched with botanical silk proteins for instant detangling.'),
+  ('off-da-hook-oil-drip-comb', 'Off Da Hook Oil Drip Comb', 19.99, 10, true, 'tools', 'Precision Applicator Tool', 'assets/shop/off-da-hook-oil-drip-comb-enhanced.jpg', 'Ergonomic scalp oil dispenser with roller-ball teeth that distributes serums directly to follicles.'),
+  ('the-children-s-line', 'Perfect Paige''s Unicorn Magic Hair System', 49.99, 8, true, 'kids bundles', 'Gentle Tear-Free Trio', 'assets/shop/the-children-s-line-enhanced.jpg', 'Ultra-gentle formulation for tender scalps and growing curls. Tear-free hydration.'),
+  ('fully-loaded-regrowth-system', 'Fully Loaded Regrowth System', 100.00, 7, true, 'bundles regrowth', 'Comprehensive Crown Recovery Kit', 'assets/shop/fully-loaded-regrowth-system-enhanced.jpg', 'The complete professional recovery protocol for severe thinning, edges, and tension damage.')
 ON CONFLICT (id) DO NOTHING;

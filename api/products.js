@@ -4,6 +4,7 @@
 // ========================================================================
 const { createClient } = require('@supabase/supabase-js');
 const { verifyToken } = require('./auth');
+const { applySecureCors } = require('./_payment-validation');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,9 +18,7 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
 
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecureCors(req, res, 'GET, POST, PUT, DELETE, OPTIONS', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
