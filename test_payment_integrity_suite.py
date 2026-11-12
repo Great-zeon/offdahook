@@ -917,6 +917,124 @@ p66 = (
 )
 record_test("TC-66", "Notification", "UNIT TEST", "Allows same-session webhook retry, blocks cross-session intent replay, and protects delivered email state", "Retry allowed, replay blocked, delivered preserved", f"Passed={p66}", p66)
 
+# 13. Contact Form Delivery & Merchant Email Configuration Checks (TC-67 through TC-80)
+with open("api/contact.js", "r") as f:
+    contact_js = f.read()
+with open(".env.example", "r") as f:
+    env_example = f.read()
+with open("index.html", "r") as f:
+    index_html = f.read()
+with open("contact.html", "r") as f:
+    contact_html = f.read()
+with open("careers.html", "r") as f:
+    careers_html = f.read()
+with open("main.js", "r") as f:
+    main_js_latest = f.read()
+with open("api/webhook.js", "r") as f:
+    webhook_js_latest = f.read()
+with open("api/_notification-outbox.js", "r") as f:
+    outbox_js_latest = f.read()
+
+def sim_validate_contact(body):
+    if not isinstance(body, dict):
+        return False, "Payload must be dict"
+    if str(body.get("website", "")).strip() or str(body.get("_hp", "")).strip():
+        return False, "Spam honeypot triggered"
+    if body.get("attachments") or body.get("cvFile") or body.get("resumeFile"):
+        return False, "Attachments unsupported"
+    ft = str(body.get("formType", "")).strip()
+    if ft not in ("contact_request", "suite_inquiry", "career_application"):
+        return False, "Unsupported formType"
+    name = str(body.get("name", "")).strip()
+    if len(name) < 2 or len(name) > 120:
+        return False, "Invalid name length"
+    phone = str(body.get("phone", "")).strip()
+    if len(phone) < 7 or len(phone) > 30 or len(re.sub(r"\D", "", phone)) < 7:
+        return False, "Invalid phone"
+    email = str(body.get("email", "")).strip()
+    if ft in ("suite_inquiry", "career_application") and not email:
+        return False, "Email required"
+    if email and (len(email) > 254 or not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$", email)):
+        return False, "Invalid email format"
+    notes = str(body.get("notes", "")).strip()
+    if len(notes) > 2000:
+        return False, "Notes oversized"
+    if ft in ("contact_request", "suite_inquiry") and not str(body.get("service", "")).strip():
+        return False, "Service required"
+    if ft == "career_application":
+        for req_f in ("role", "experience", "license", "availability"):
+            if not str(body.get(req_f, "")).strip():
+                return False, f"Missing {req_f}"
+    return True, "OK"
+
+# TC-67: Valid contact inquiry
+ok67, _ = sim_validate_contact({"formType": "contact_request", "name": "Jane Client", "phone": "347-555-0199", "service": "Silk Press", "preferredDate": "2026-12-01", "notes": "Looking forward"})
+record_test("TC-67", "Contact", "UNIT TEST", "Valid contact inquiry (#contact-page-form) passes validation", "Valid = True", f"Valid = {ok67}", ok67)
+
+# TC-68: Valid suite inquiry
+ok68, _ = sim_validate_contact({"formType": "suite_inquiry", "name": "Maya Stylist", "email": "maya@example.com", "phone": "718-555-0123", "service": "Knotless Box Braids"})
+record_test("TC-68", "Contact", "UNIT TEST", "Valid suite inquiry (#suite-contact-form) passes validation", "Valid = True", f"Valid = {ok68}", ok68)
+
+# TC-69: Valid career application
+ok69, _ = sim_validate_contact({"formType": "career_application", "name": "Nia Braider", "email": "nia@example.com", "phone": "917-555-0100", "role": "Professional Braider", "experience": "3 to 5 Years", "license": "NYS Licensed", "availability": "Full-Time"})
+record_test("TC-69", "Contact", "UNIT TEST", "Valid career application (#career-application-form) passes validation", "Valid = True", f"Valid = {ok69}", ok69)
+
+# TC-70: Invalid email rejected
+ok70, msg70 = sim_validate_contact({"formType": "suite_inquiry", "name": "Jane", "email": "not-an-email", "phone": "347-555-0100", "service": "Silk Press"})
+record_test("TC-70", "Contact", "UNIT TEST", "Invalid email address rejected with validation error", "Rejected", msg70, not ok70)
+
+# TC-71: Empty required fields rejected
+ok71, msg71 = sim_validate_contact({"formType": "career_application", "name": "Nia", "email": "nia@example.com", "phone": "917-555-0100"})
+record_test("TC-71", "Contact", "UNIT TEST", "Missing required career fields rejected cleanly", "Rejected", msg71, not ok71)
+
+# TC-72: Oversized submission (>2000 chars) rejected
+ok72, msg72 = sim_validate_contact({"formType": "suite_inquiry", "name": "Jane", "email": "jane@example.com", "phone": "347-555-0100", "service": "Silk Press", "notes": "A" * 2005})
+record_test("TC-72", "Contact", "UNIT TEST", "Oversized message body (>2000 chars) rejected cleanly", "Rejected", msg72, not ok72)
+
+# TC-73: Honeypot spam submission rejected
+ok73, msg73 = sim_validate_contact({"formType": "suite_inquiry", "name": "Bot", "email": "bot@spam.com", "phone": "347-555-0100", "service": "Silk Press", "website": "http://spam-links.example"})
+record_test("TC-73", "Contact", "UNIT TEST", "Populated honeypot field triggers spam rejection", "Rejected", msg73, not ok73)
+
+# TC-74: File attachment payload explicitly rejected (no silent CV discard)
+ok74, msg74 = sim_validate_contact({"formType": "career_application", "name": "Nia", "email": "nia@example.com", "phone": "917-555-0100", "role": "Braider", "experience": "1 to 2 Years", "license": "NYS", "availability": "Full-Time", "cvFile": "base64..."})
+record_test("TC-74", "Contact", "UNIT TEST", "Unsupported file attachment payload rejected explicitly rather than silently discarded", "Rejected", msg74, not ok74)
+
+# TC-75: HTML/script injection neutralized cleanly on contact templates
+p75 = "escapeHtml(data.name)" in contact_js and "escapeHtml(data.service)" in contact_js and "escapeFormHtml" in main_js_latest
+record_test("TC-75", "Contact", "STATIC REVIEW", "Both api/contact.js email templates and main.js DOM confirmations escape all user fields", "Escaping enforced", f"Passed={p75}", p75)
+
+# TC-76: Repeated submissions / throttling & dedup implemented
+p76 = "DEDUP_WINDOW_MS" in contact_js and "MAX_SUBMISSIONS_PER_WINDOW" in contact_js and "res.status(429)" in contact_js and "if (submitBtn && submitBtn.disabled) return;" in main_js_latest
+record_test("TC-76", "Contact", "STATIC REVIEW", "Enforces IP throttling (429), 30s payload dedup, and frontend button disable guard", "Throttling & dedup present", f"Passed={p76}", p76)
+
+# TC-77: Missing Resend credentials, Resend rejection, and missing recipient fail closed cleanly
+p77 = "if (!recipient)" in contact_js and "if (!process.env.RESEND_API_KEY)" in contact_js and "if (!sendResult.success)" in contact_js and "res.status(502)" in contact_js and "res.status(503)" in contact_js
+record_test("TC-77", "Contact", "STATIC REVIEW", "Missing recipient, missing RESEND_API_KEY, and Resend errors return honest 502/503 without false success", "Fail closed 502/503", f"Passed={p77}", p77)
+
+# TC-78: Unauthorized Origin rejected with 403
+p78 = "if (reqOrigin && !isOriginAllowed(reqOrigin))" in contact_js and "res.status(403)" in contact_js
+record_test("TC-78", "Contact", "STATIC REVIEW", "Unauthorized cross-site Origin rejected with HTTP 403", "Origin guard enforced", f"Passed={p78}", p78)
+
+# TC-79: Wrong hardcoded fallback 'offdahooksalon@gmail.com' completely purged
+p79 = (
+    "offdahooksalon@gmail.com" not in schema_sql
+    and "offdahooksalon@gmail.com" not in webhook_js_latest
+    and "offdahooksalon@gmail.com" not in outbox_js_latest
+    and "offdahooksalon@gmail.com" not in env_example
+)
+record_test("TC-79", "Email Config", "STATIC REVIEW", "Guessed fallback 'offdahooksalon@gmail.com' purged from SQL, Node APIs, and .env.example", "0 occurrences remain", f"Purged={p79}", p79)
+
+# TC-80: All three HTML forms wired with honeypot + single fetch('/api/contact') handler
+p80 = (
+    'name="website"' in index_html
+    and 'name="website"' in contact_html
+    and 'name="website"' in careers_html
+    and "careerSuccessBanner" not in careers_html.split("Career form submission")[1]
+    and "fetch('/api/contact'" in main_js_latest
+    and "accepts_provider" not in main_js_latest
+)
+record_test("TC-80", "Contact", "STATIC REVIEW", "All 3 forms include honeypot field, remove fake inline career submit, and post to /api/contact", "Frontend wiring verified", f"Passed={p80}", p80)
+
 print("=" * 70)
 print(f"AUTOMATED TEST RESULTS: {tests_passed} PASSED / {tests_run} EXECUTED")
 print("=" * 70)

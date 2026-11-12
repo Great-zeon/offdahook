@@ -712,6 +712,7 @@
           </div>
 
           <form class="booking-form" id="career-application-form">
+            <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;">
             
             <div class="booking-options-row">
               <div class="form-group">
@@ -768,8 +769,8 @@
 
             <div class="booking-options-row">
               <div class="form-group">
-                <label class="form-label" for="applicant-instagram">Instagram Handle or Portfolio Link (Recommended)</label>
-                <input type="text" id="applicant-instagram" class="form-control" placeholder="e.g. @hair_by_maya or website URL">
+                <label class="form-label" for="applicant-instagram">Instagram Handle, Portfolio or Resume Link (Recommended)</label>
+                <input type="text" id="applicant-instagram" class="form-control" placeholder="e.g. @hair_by_maya or Google Drive / website URL (file uploads not required)">
               </div>
               <div class="form-group">
                 <label class="form-label" for="applicant-availability">Preferred Availability *</label>
@@ -1045,20 +1046,7 @@
         });
       });
 
-      const careerForm = document.getElementById('career-application-form');
-      const successBanner = document.getElementById('careerSuccessBanner');
-      if (careerForm) {
-        careerForm.addEventListener('submit', (e) => {
-          e.preventDefault();
-          const name = document.getElementById('applicant-name')?.value;
-          const role = document.getElementById('applicant-role')?.value;
-          if (successBanner) {
-            successBanner.style.display = 'block';
-            successBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-          careerForm.reset();
-        });
-      }
+      // Career form submission is handled securely via /api/contact in main.js
     });
   </script>
 </body>

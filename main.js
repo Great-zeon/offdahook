@@ -725,134 +725,200 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 7c. Form Handlers with Real-time Validation, Success & Error Messages
-  const suiteContactForm = document.getElementById('suite-contact-form');
-  if (suiteContactForm) {
-    suiteContactForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const nameInput = document.getElementById('contact-name');
-      const emailInput = document.getElementById('contact-email');
-      const phoneInput = document.getElementById('contact-phone');
-      const serviceInput = document.getElementById('contact-service') || selectedServiceInput;
+  // 7c. Form Handlers with Real Backend Dispatch (/api/contact), Honeypot, & Honest Error Handling
+  const escapeFormHtml = (str) => String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
-      const name = nameInput?.value?.trim() || '';
-      const email = emailInput?.value?.trim() || '';
-      const phone = phoneInput?.value?.trim() || '';
-      const service = serviceInput?.value?.trim() || 'Private Suite Consultation';
+  function showFormErrorAlert(form, message) {
+    let existingAlert = form.querySelector('.form-error-alert');
+    if (existingAlert) existingAlert.remove();
 
-      let existingAlert = suiteContactForm.querySelector('.form-error-alert');
-      if (existingAlert) existingAlert.remove();
+    const err = document.createElement('div');
+    err.className = 'form-error-alert';
+    err.setAttribute('role', 'alert');
+    err.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> <span>${escapeFormHtml(message)}</span>`;
+    form.insertBefore(err, form.firstChild);
+    err.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
-      if (!name || !phone) {
-        const err = document.createElement('div');
-        err.className = 'form-error-alert';
-        err.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Please enter your name and phone number so Shawnese can reach you.`;
-        suiteContactForm.insertBefore(err, suiteContactForm.firstChild);
-        if (!name && nameInput) nameInput.focus();
-        else if (!phone && phoneInput) phoneInput.focus();
+  async function submitSalonForm(form, payload, successTitle, successBodyHtml, includeStyleSeat = true) {
+    let existingAlert = form.querySelector('.form-error-alert');
+    if (existingAlert) existingAlert.remove();
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn && submitBtn.disabled) return; // Prevent duplicate rapid submission
+
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Sending Safely...</span>';
+    }
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || data.success !== true) {
+        const msg = (data && data.error)
+          ? data.error
+          : 'Unable to send your inquiry right now. Please try again or call (347) 238-1602.';
+        showFormErrorAlert(form, msg);
         return;
       }
 
-      suiteContactForm.innerHTML = `
+      form.innerHTML = `
         <div class="form-success-alert">
           <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(216, 27, 96, 0.1); color: var(--pink-primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
           </div>
-          <h3 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-primary);">Suite Inquiry Confirmed</h3>
+          <h3 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-primary);">${escapeFormHtml(successTitle)}</h3>
           <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 20px; line-height: 1.6;">
-            Thank you, <strong>${name}</strong>! Shawnese Parker has received your request for <strong>${service}</strong>. She will contact you directly at <strong>${phone}</strong>${email ? ` or <strong>${email}</strong>` : ''} to confirm your appointment time.
+            ${successBodyHtml}
           </p>
           <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
             <a href="tel:3472381602" class="btn-action-solid">
               Call / Text: (347) 238-1602
             </a>
-            <a href="https://www.styleseat.com/m/v/stylist101" target="_blank" rel="noopener" class="btn-action-outline">
-              StyleSeat Real-Time Booking ↗
-            </a>
+            ${includeStyleSeat ? `<a href="https://www.styleseat.com/m/v/stylist101" target="_blank" rel="noopener" class="btn-action-outline">StyleSeat Real-Time Booking ↗</a>` : ''}
           </div>
         </div>
       `;
+    } catch (networkErr) {
+      showFormErrorAlert(form, 'Network error while sending your message. Your details are still saved below—please retry or call (347) 238-1602.');
+    } finally {
+      if (submitBtn && form.contains(submitBtn)) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHtml;
+      }
+    }
+  }
+
+  const suiteContactForm = document.getElementById('suite-contact-form');
+  if (suiteContactForm) {
+    suiteContactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById('contact-name');
+      const emailInput = document.getElementById('contact-email');
+      const phoneInput = document.getElementById('contact-phone');
+      const serviceInput = document.getElementById('contact-service') || selectedServiceInput;
+      const notesInput = document.getElementById('contact-notes');
+      const honeypotInput = suiteContactForm.querySelector('input[name="website"]');
+
+      const name = nameInput?.value?.trim() || '';
+      const email = emailInput?.value?.trim() || '';
+      const phone = phoneInput?.value?.trim() || '';
+      const service = serviceInput?.value?.trim() || '';
+      const notes = notesInput?.value?.trim() || '';
+
+      if (!name || !phone || !email || !service) {
+        showFormErrorAlert(suiteContactForm, 'Please enter your full name, email address, phone number, and desired service.');
+        if (!name && nameInput) nameInput.focus();
+        else if (!email && emailInput) emailInput.focus();
+        else if (!phone && phoneInput) phoneInput.focus();
+        return;
+      }
+
+      await submitSalonForm(
+        suiteContactForm,
+        {
+          formType: 'suite_inquiry',
+          name,
+          email,
+          phone,
+          service,
+          notes,
+          website: honeypotInput ? honeypotInput.value : ''
+        },
+        'Suite Inquiry Submitted',
+        `Thank you, <strong>${escapeFormHtml(name)}</strong>! Your inquiry for <strong>${escapeFormHtml(service)}</strong> has been dispatched to Shawnese Parker. She will reach out at <strong>${escapeFormHtml(phone)}</strong> or <strong>${escapeFormHtml(email)}</strong>.`,
+        true
+      );
     });
   }
 
   // Career Application Form Handler
   const careerForm = document.getElementById('career-application-form');
   if (careerForm) {
-    careerForm.addEventListener('submit', (e) => {
+    careerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = document.getElementById('applicant-name')?.value.trim();
-      const phone = document.getElementById('applicant-phone')?.value.trim();
-      const email = document.getElementById('applicant-email')?.value.trim();
-      const role = document.getElementById('applicant-role')?.value;
+      const name = document.getElementById('applicant-name')?.value.trim() || '';
+      const phone = document.getElementById('applicant-phone')?.value.trim() || '';
+      const email = document.getElementById('applicant-email')?.value.trim() || '';
+      const role = document.getElementById('applicant-role')?.value.trim() || '';
+      const experience = document.getElementById('applicant-experience')?.value.trim() || '';
+      const license = document.getElementById('applicant-license')?.value.trim() || '';
+      const portfolio = document.getElementById('applicant-instagram')?.value.trim() || '';
+      const availability = document.getElementById('applicant-availability')?.value.trim() || '';
+      const notes = document.getElementById('applicant-notes')?.value.trim() || '';
+      const honeypotInput = careerForm.querySelector('input[name="website"]');
 
-      let existingAlert = careerForm.querySelector('.form-error-alert');
-      if (existingAlert) existingAlert.remove();
-
-      if (!name || !phone || !email || !role) {
-        const err = document.createElement('div');
-        err.className = 'form-error-alert';
-        err.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Please fill in all required fields marked with an asterisk (*).`;
-        careerForm.insertBefore(err, careerForm.firstChild);
+      if (!name || !phone || !email || !role || !experience || !license || !availability) {
+        showFormErrorAlert(careerForm, 'Please fill in all required career application fields marked with an asterisk (*).');
         return;
       }
 
-      careerForm.innerHTML = `
-        <div class="form-success-alert">
-          <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(216, 27, 96, 0.1); color: var(--pink-primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          </div>
-          <h3 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-primary);">Application Received</h3>
-          <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 20px; line-height: 1.6;">
-            Thank you, <strong>${name}</strong>! Your application for <strong>${role}</strong> has been sent to Shawnese Parker. We will contact you at <strong>${phone}</strong> or <strong>${email}</strong>.
-          </p>
-          <a href="tel:3472381602" class="btn-action-solid">
-            Call Suite Concierge: (347) 238-1602
-          </a>
-        </div>
-      `;
+      await submitSalonForm(
+        careerForm,
+        {
+          formType: 'career_application',
+          name,
+          phone,
+          email,
+          role,
+          experience,
+          license,
+          portfolio,
+          availability,
+          notes,
+          website: honeypotInput ? honeypotInput.value : ''
+        },
+        'Application Submitted',
+        `Thank you, <strong>${escapeFormHtml(name)}</strong>! Your application for <strong>${escapeFormHtml(role)}</strong> has been dispatched to Shawnese Parker. We will reach out to you at <strong>${escapeFormHtml(phone)}</strong> or <strong>${escapeFormHtml(email)}</strong>.`,
+        false
+      );
     });
   }
 
   // Dedicated Contact Page Form Handler
   const contactPageForm = document.getElementById('contact-page-form');
   if (contactPageForm) {
-    contactPageForm.addEventListener('submit', (e) => {
+    contactPageForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = document.getElementById('contact-client-name')?.value.trim();
-      const phone = document.getElementById('contact-client-phone')?.value.trim();
-      const service = document.getElementById('contact-booking-service-select')?.value;
-      const date = document.getElementById('contact-booking-date')?.value;
-
-      let existingAlert = contactPageForm.querySelector('.form-error-alert');
-      if (existingAlert) existingAlert.remove();
+      const name = document.getElementById('contact-client-name')?.value.trim() || '';
+      const phone = document.getElementById('contact-client-phone')?.value.trim() || '';
+      const service = document.getElementById('contact-booking-service-select')?.value.trim() || '';
+      const preferredDate = document.getElementById('contact-booking-date')?.value.trim() || '';
+      const notes = document.getElementById('contact-client-notes')?.value.trim() || '';
+      const honeypotInput = contactPageForm.querySelector('input[name="website"]');
 
       if (!name || !phone || !service) {
-        const err = document.createElement('div');
-        err.className = 'form-error-alert';
-        err.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Please fill out your name, phone number, and desired service.`;
-        contactPageForm.insertBefore(err, contactPageForm.firstChild);
+        showFormErrorAlert(contactPageForm, 'Please fill out your name, phone number, and desired service.');
         return;
       }
 
-      contactPageForm.innerHTML = `
-        <div class="form-success-alert">
-          <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(216, 27, 96, 0.1); color: var(--pink-primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          </div>
-          <h3 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-primary);">Suite Request Submitted</h3>
-          <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 20px; line-height: 1.6;">
-            Thank you, <strong>${name}</strong>! Shawnese will review your appointment request for <strong>${service}</strong>${date ? ` on <strong>${date}</strong>` : ''} and confirm with you at <strong>${phone}</strong>.
-          </p>
-          <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-            <a href="tel:3472381602" class="btn-action-solid">
-              Direct Call: (347) 238-1602
-            </a>
-            <a href="https://www.styleseat.com/m/v/stylist101" target="_blank" rel="noopener" class="btn-action-outline">
-              StyleSeat Live Calendar ↗
-            </a>
-          </div>
-        </div>
-      `;
+      await submitSalonForm(
+        contactPageForm,
+        {
+          formType: 'contact_request',
+          name,
+          phone,
+          service,
+          preferredDate,
+          notes,
+          website: honeypotInput ? honeypotInput.value : ''
+        },
+        'Suite Request Submitted',
+        `Thank you, <strong>${escapeFormHtml(name)}</strong>! Your appointment request for <strong>${escapeFormHtml(service)}</strong>${preferredDate ? ` on <strong>${escapeFormHtml(preferredDate)}</strong>` : ''} has been submitted. Shawnese will confirm with you at <strong>${escapeFormHtml(phone)}</strong>.`,
+        true
+      );
     });
   }
 

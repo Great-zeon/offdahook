@@ -539,15 +539,16 @@ BEGIN
 
     -- Queue Durable Notification: Merchant Shortfall Alert
     INSERT INTO order_notifications (
-      id, order_id, notification_type, recipient, subject, html_body, status, created_at, updated_at
+      id, order_id, notification_type, recipient, subject, html_body, status, last_error, created_at, updated_at
     ) VALUES (
       'notif_' || gen_random_uuid(),
       v_order_id,
       'merchant_shortfall_alert',
-      'offdahooksalon@gmail.com',
+      COALESCE(NULLIF(btrim(p_order->>'merchant_email'), ''), 'UNCONFIGURED_MERCHANT_ALERT_EMAIL'),
       '⚠️ ACTION REQUIRED: Inventory Shortfall on Order ' || v_order_id,
       'One or more items in paid order ' || v_order_id || ' exceeded available inventory.',
-      'queued',
+      CASE WHEN NULLIF(btrim(p_order->>'merchant_email'), '') IS NULL THEN 'failed' ELSE 'queued' END,
+      CASE WHEN NULLIF(btrim(p_order->>'merchant_email'), '') IS NULL THEN 'MERCHANT_ALERT_EMAIL is not configured in environment' ELSE NULL END,
       NOW(),
       NOW()
     );
@@ -636,15 +637,16 @@ BEGIN
 
   -- Queue Durable Notification: Merchant Order Alert
   INSERT INTO order_notifications (
-    id, order_id, notification_type, recipient, subject, html_body, status, created_at, updated_at
+    id, order_id, notification_type, recipient, subject, html_body, status, last_error, created_at, updated_at
   ) VALUES (
     'notif_' || gen_random_uuid(),
     v_order_id,
     'merchant_order_alert',
-    'offdahooksalon@gmail.com',
+    COALESCE(NULLIF(btrim(p_order->>'merchant_email'), ''), 'UNCONFIGURED_MERCHANT_ALERT_EMAIL'),
     '📦 New Order to Fulfill: ' || v_order_id,
     'A new order was placed and verified.',
-    'queued',
+    CASE WHEN NULLIF(btrim(p_order->>'merchant_email'), '') IS NULL THEN 'failed' ELSE 'queued' END,
+    CASE WHEN NULLIF(btrim(p_order->>'merchant_email'), '') IS NULL THEN 'MERCHANT_ALERT_EMAIL is not configured in environment' ELSE NULL END,
     NOW(),
     NOW()
   );

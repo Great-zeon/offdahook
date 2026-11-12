@@ -27,12 +27,11 @@
 
 ### Step 1: Isolated Staging Schema Execution (ACT-01)
 1. Provision a disposable/staging Supabase project.
-2. Open the SQL Editor, paste [`OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql), and click **Run**.
-3. Run the script a **second time** to verify idempotency and repeatability.
-4. Confirm existence of tables (`products`, `orders`, `webhook_events`, `checkout_intents`, `order_notifications`) and functions (`process_paid_order_atomic`, `record_webhook_failure`, `claim_pending_notifications`, `deduct_product_stock_atomic`).
+2. Review [`OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql) against the staging database schema first to confirm compatibility with existing constraints/data (note: duplicate `stripe_session_id` rows intentionally halt with `MIGRATION BLOCKED` so historical IDs are never rewritten).
+3. Open the Staging SQL Editor, paste and execute the schema once, verify table/function compilation (`products`, `orders`, `webhook_events`, `checkout_intents`, `order_notifications`, `process_paid_order_atomic`, `record_webhook_failure`, `claim_pending_notifications`, `deduct_product_stock_atomic`), and confirm idempotent re-execution only after inspecting results.
 
 ### Step 2: Staging Environment & Webhooks (ACT-02, ACT-03, ACT-04)
-1. Set all environment variables documented in [`.env.example`](file:///Users/macos/Downloads/offdahook/.env.example) in Vercel Preview scope.
+1. Set all environment variables documented in [`.env.example`](file:///Users/macos/Downloads/offdahook/.env.example) in Vercel Preview scope (always use an authorized test inbox for `MERCHANT_ALERT_EMAIL` / `CONTACT_ALERT_EMAIL` during staging—never send test emails to real customers).
 2. Add Stripe Test-Mode webhook pointing to `https://<staging-domain>/api/webhook` and store `STRIPE_WEBHOOK_SECRET`.
 3. Add Resend webhook pointing to `https://<staging-domain>/api/resend-webhook` (`email.delivered`, `email.bounced`, `email.complained`, `email.delivery_delayed`) and store `RESEND_WEBHOOK_SECRET`.
 4. Deploy/redeploy Vercel Preview.

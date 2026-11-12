@@ -29,12 +29,12 @@
 ## Section C: Business Email & Contact Information
 | Item | What Is Needed | Why It Is Needed | Who Provides It | Priority | Mandatory? | Done By |
 | :--- | :--- | :--- | :--- | :---: | :---: | :--- |
-| **C-01** | Confirm single official salon mailbox (`offdahookhairsalon@gmail.com` vs. `offdahooksalon@gmail.com`) | Website footer/pages list `offdahookhairsalon@gmail.com`, while fallback order alerts default to `offdahooksalon@gmail.com` | Owner (Shawnese) | High | **Mandatory** | Owner |
-| **C-02** | Target email address for new-order & backorder alerts (`MERCHANT_ALERT_EMAIL`) | Where automated order notifications arrive | Owner (Shawnese) | High | **Mandatory** | Owner |
-| **C-03** | Customer support & contact-inquiry email address | Displayed to customers & used if contact-form email delivery is requested | Owner (Shawnese) | High | **Mandatory** | Owner |
-| **C-04** | Preferred transactional sender address (code currently sets `orders@offdahookhairsalon.com`) | Customers see this as the sender on receipts | Owner (Shawnese) | Medium | **Mandatory** | Owner + Developer |
-| **C-05** | Separate Resend account & API credentials (`RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`) | Sends automated order receipts & tracks real delivery/bounces | Owner or Developer | High | **Mandatory** | Owner + Developer |
-| **C-06** | Decision on Web Contact/Career Forms (`#contact-page-form`, `#career-application-form`) | **Code audit note:** These forms currently display local confirmation only and rely on `mailto:` / StyleSeat links; sending automated form emails requires adding a dedicated backend route | Owner (Shawnese) | Low | **Optional** (if `mailto:`/StyleSeat suffices) | Developer (only if approved) |
+| **C-01** | Confirm single official salon mailbox (`offdahookhairsalon@gmail.com` or custom domain) | Guessed fallback `offdahooksalon@gmail.com` has been removed; backend strictly requires explicit configuration | Owner (Shawnese) | High | **Mandatory** | Owner |
+| **C-02** | Target email address for new-order & backorder alerts (`MERCHANT_ALERT_EMAIL`) | Where automated order notifications arrive (`contact.html` & `careers.html` can also override via `CONTACT_ALERT_EMAIL` / `CAREER_ALERT_EMAIL`) | Owner (Shawnese) | High | **Mandatory** | Owner |
+| **C-03** | Customer support & contact-inquiry email address | Displayed to customers & used for contact/suite inquiries (`CONTACT_ALERT_EMAIL`) | Owner (Shawnese) | High | **Mandatory** | Owner |
+| **C-04** | Preferred transactional sender address (`RESEND_FROM_EMAIL`, default `orders@offdahookhairsalon.com`) | Customers see this as the sender on receipts; domain must match Resend verified domain | Owner (Shawnese) | Medium | **Mandatory** | Owner + Developer |
+| **C-05** | Separate Resend account & API credentials (`RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`) | Sends automated order receipts, contact/career inquiries & tracks real delivery/bounces | Owner or Developer | High | **Mandatory** | Owner + Developer |
+| **C-06** | Career application CV handling preference | `#contact-page-form`, `#suite-contact-form`, and `#career-application-form` dispatch via `/api/contact` using Resend; applicants share portfolio/resume URLs (direct file uploads not enabled) | Owner (Shawnese) | Low | **Optional** (if URL links suffice) | Owner confirms |
 
 ---
 

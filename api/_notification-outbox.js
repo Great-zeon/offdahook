@@ -22,19 +22,25 @@ function sanitizeErrorMessage(err) {
 /**
  * Send an email via native HTTPS call to Resend REST API with strict timeout & Idempotency-Key
  */
-function sendEmailViaResendRest(to, subject, htmlBody, idempotencyKey = null) {
+function sendEmailViaResendRest(to, subject, htmlBody, idempotencyKey = null, replyTo = null) {
   return new Promise((resolve) => {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
       return resolve({ success: false, error: 'RESEND_API_KEY is not configured in environment' });
     }
 
-    const payload = JSON.stringify({
-      from: 'Off Da Hook Salon Suites <orders@offdahookhairsalon.com>',
+    const fromAddress = (process.env.RESEND_FROM_EMAIL || '').trim() || 'Off Da Hook Salon Suites <orders@offdahookhairsalon.com>';
+    const bodyObj = {
+      from: fromAddress,
       to: [to],
       subject: subject,
       html: htmlBody
-    });
+    };
+    if (replyTo && typeof replyTo === 'string' && replyTo.includes('@')) {
+      bodyObj.reply_to = replyTo.trim();
+    }
+
+    const payload = JSON.stringify(bodyObj);
 
     const headers = {
       'Authorization': `Bearer ${apiKey}`,
@@ -136,6 +142,23 @@ async function claimNotifications(supabase, orderId = null, limit = 20) {
  */
 async function processClaimedNotification(supabase, notif) {
   const attemptNum = notif.attempt_count || 1;
+  if (!notif.recipient || !notif.recipient.includes('@') || notif.recipient === 'UNCONFIGURED_MERCHANT_ALERT_EMAIL') {
+    const errText = 'Notification recipient email is invalid or MERCHANT_ALERT_EMAIL is unconfigured';
+    await supabase.from('order_notifications').update({
+      status: 'failed',
+      last_error: errText,
+      updated_at: new Date().toISOString()
+    }).eq('id', notif.id);
+    if (notif.notification_type.startsWith('merchant')) {
+      await supabase.from('orders').update({
+        merchant_alert_sent: false,
+        merchant_alert_status: 'failed',
+        merchant_alert_error: errText
+      }).eq('id', notif.order_id);
+    }
+    return { id: notif.id, order_id: notif.order_id, status: 'failed', error: errText };
+  }
+
   const idempotencyKey = `notif-${notif.id}-attempt-${attemptNum}`;
   const sendResult = await sendEmailViaResendRest(notif.recipient, notif.subject, notif.html_body, idempotencyKey);
 
@@ -342,12 +365,25 @@ async function enrichOrderNotifications(supabase, {
     const merchantType = isShortfall ? 'merchant_shortfall_alert' : 'merchant_order_alert';
     const customerType = isShortfall ? 'customer_backorder_notice' : 'customer_order_receipt';
 
-    const targetMerchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
-    await supabase
-      .from('order_notifications')
-      .update({ html_body: merchantBody, recipient: targetMerchantEmail, updated_at: new Date().toISOString() })
-      .eq('order_id', orderId)
-      .eq('notification_type', merchantType);
+    const targetMerchantEmail = (process.env.MERCHANT_ALERT_EMAIL || '').trim();
+    if (targetMerchantEmail && targetMerchantEmail.includes('@')) {
+      await supabase
+        .from('order_notifications')
+        .update({ html_body: merchantBody, recipient: targetMerchantEmail, updated_at: new Date().toISOString() })
+        .eq('order_id', orderId)
+        .eq('notification_type', merchantType);
+    } else {
+      await supabase
+        .from('order_notifications')
+        .update({
+          html_body: merchantBody,
+          status: 'failed',
+          last_error: 'MERCHANT_ALERT_EMAIL is not configured in environment',
+          updated_at: new Date().toISOString()
+        })
+        .eq('order_id', orderId)
+        .eq('notification_type', merchantType);
+    }
 
     if (customerEmail) {
       await supabase

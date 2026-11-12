@@ -90,12 +90,17 @@ const handler = async (req, res) => {
       }
     }
 
-    const merchantEmail = process.env.MERCHANT_ALERT_EMAIL || 'offdahooksalon@gmail.com';
-    await sendEmailViaResendRest(
-      merchantEmail,
-      `⚠️ Payment Failed for Session: ${escapeHtml(session.id)}`,
-      `<p>An asynchronous payment attempt failed for Stripe session <strong>${escapeHtml(session.id)}</strong>. No order was fulfilled.</p>`
-    );
+    const merchantEmail = (process.env.MERCHANT_ALERT_EMAIL || '').trim();
+    if (merchantEmail) {
+      await sendEmailViaResendRest(
+        merchantEmail,
+        `⚠️ Payment Failed for Session: ${escapeHtml(session.id)}`,
+        `<p>An asynchronous payment attempt failed for Stripe session <strong>${escapeHtml(session.id)}</strong>. No order was fulfilled.</p>`,
+        `async-fail-${session.id}`
+      );
+    } else {
+      console.warn('MERCHANT_ALERT_EMAIL not configured; skipped async_payment_failed merchant alert.');
+    }
 
     return res.status(200).json({
       received: true,
@@ -183,6 +188,7 @@ const handler = async (req, res) => {
             id: orderId,
             stripe_session_id: session.id,
             checkout_intent_id: session.metadata?.checkout_intent_id || null,
+            merchant_email: (process.env.MERCHANT_ALERT_EMAIL || '').trim() || null,
             customer_name: customerName,
             customer_email: customerEmail,
             customer_phone: customerPhone,

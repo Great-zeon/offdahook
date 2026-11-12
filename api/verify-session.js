@@ -139,6 +139,7 @@ module.exports = async (req, res) => {
               id: newOrderId,
               stripe_session_id: session.id,
               checkout_intent_id: session.metadata?.checkout_intent_id || null,
+              merchant_email: (process.env.MERCHANT_ALERT_EMAIL || '').trim() || null,
               customer_name: customerName,
               customer_email: customerEmail,
               customer_phone: phone,
