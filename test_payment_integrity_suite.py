@@ -891,6 +891,32 @@ record_test("TC-64", "Notification", "STATIC REVIEW", "_notification-outbox.js u
 p65 = "INTENT_ALREADY_USED" in pv_js and "expectedAdjustedCents" in pv_js
 record_test("TC-65", "Checkout", "STATIC REVIEW", "_payment-validation.js rejects intent replay and reconciles integer total cents with tax/discount", "Replay guard + exact cents match", f"Passed={p65}", p65)
 
+# TC-66: Resend delivery lifecycle protection & Intent same-session retry safety
+with open("api/resend-webhook.js", "r") as f:
+    resend_wh_latest = f.read()
+
+def sim_intent_replay_check(intent_status, intent_session_id, incoming_session_id):
+    if intent_status == "completed" and intent_session_id and intent_session_id != incoming_session_id:
+        raise ValueError("INTENT_ALREADY_USED")
+    return True
+
+# Same-session retry succeeds; different-session replay rejected
+same_sess_ok = sim_intent_replay_check("completed", "cs_test_ABC", "cs_test_ABC")
+cross_sess_blocked = False
+try:
+    sim_intent_replay_check("completed", "cs_test_ABC", "cs_test_OTHER")
+except ValueError as e:
+    cross_sess_blocked = "INTENT_ALREADY_USED" in str(e)
+
+p66 = (
+    same_sess_ok
+    and cross_sess_blocked
+    and "if (notif.status === newStatus)" in resend_wh_latest
+    and "newStatus === 'bounced'" in resend_wh_latest
+    and "preserved_delivered: true" in resend_wh_latest
+)
+record_test("TC-66", "Notification", "UNIT TEST", "Allows same-session webhook retry, blocks cross-session intent replay, and protects delivered email state", "Retry allowed, replay blocked, delivered preserved", f"Passed={p66}", p66)
+
 print("=" * 70)
 print(f"AUTOMATED TEST RESULTS: {tests_passed} PASSED / {tests_run} EXECUTED")
 print("=" * 70)

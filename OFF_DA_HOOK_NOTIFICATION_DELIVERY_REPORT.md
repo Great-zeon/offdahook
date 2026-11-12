@@ -27,3 +27,4 @@
 | :--- | :---: | :--- |
 | Outbox schema, atomic claim RPC, timeout & Svix webhook verification (`TC-14`..`17`, `TC-45`, `TC-51`..`53`, `TC-60`, `TC-64`) | **PASS** (Static / Simulated) | None |
 | Live Resend API Acceptance & Inbox Delivery (`offdahookhairsalon.com` SPF/DKIM) | **BLOCKED** | `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, and live DNS verification |
+

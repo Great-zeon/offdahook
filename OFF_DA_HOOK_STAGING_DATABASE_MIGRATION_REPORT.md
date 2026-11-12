@@ -21,3 +21,4 @@ Inspected tables, constraints, functions, and RLS policies:
 | Existing DB with Nullable `stripe_session_id` & Non-Unique Index | **BLOCKED** | Requires live staging PostgreSQL instance. |
 | Existing DB with Duplicate Historical Session IDs | **BLOCKED** | Logic verified in `TC-12` (Simulated DB Logic Test); live PostgreSQL server execution requires staging DB. |
 | Migration Repeatability (2nd Execution) | **BLOCKED** | Requires live staging PostgreSQL instance. |
+

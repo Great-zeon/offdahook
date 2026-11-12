@@ -28,3 +28,4 @@
 | :--- | :---: | :---: |
 | Cart, checkout init & return session check (`main.js`) | **PASS** (Static) | **BLOCKED** (Requires Vercel Preview deployment + browser E2E run) |
 | Admin login, stock sync, product CRUD & order management (`admin.html`) | **PASS** (Static) | **BLOCKED** (Requires Staging Supabase + Vercel Preview + `ADMIN_PIN`) |
+

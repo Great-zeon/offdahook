@@ -34,3 +34,4 @@ flowchart LR
 | Storefront confirmation separation | Checks `data.order_persisted && data.order` vs `showPendingOrderConfirmation` (`TC-47`) | **PASS** (Static) |
 | **Live Stripe Test-Mode E2E Checkout (Vercel Preview + Test Card `4242...`)** | Awaits Staging Environment & Stripe Test Credentials | **BLOCKED** |
 | **Live Async Payment Event Webhook Verification (`async_payment_succeeded`/`failed`)** | Code paths implemented (`TC-24`, `TC-37`); checkout uses `'card'` only | **BLOCKED** (Live E2E) |
+

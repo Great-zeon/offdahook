@@ -122,8 +122,13 @@ const handler = async (req, res) => {
       return res.status(200).json({ received: true, matched: false });
     }
 
-    // Never downgrade a permanently delivered email with an out-of-order delayed webhook
-    if (notif.status === 'delivered' && newStatus === 'delayed') {
+    // Idempotent duplicate replay guard
+    if (notif.status === newStatus) {
+      return res.status(200).json({ received: true, idempotent: true, status: newStatus });
+    }
+
+    // Protect authoritative 'delivered' state from late delayed or out-of-order bounced webhooks
+    if (notif.status === 'delivered' && (newStatus === 'delayed' || newStatus === 'bounced')) {
       return res.status(200).json({ received: true, preserved_delivered: true });
     }
 
@@ -165,3 +170,4 @@ handler.config = {
 };
 
 module.exports = handler;
+

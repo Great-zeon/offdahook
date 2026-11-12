@@ -23,3 +23,4 @@
 | :--- | :---: | :--- |
 | Simulated Concurrency & DB Logic Tests (`TC-02`..`09`, `TC-36`, `TC-54`) | **PASS** | Validated in Python multi-threaded & PL/pgSQL logic simulator (`test_payment_integrity_suite.py`). |
 | Real PostgreSQL Server Concurrency (`FOR UPDATE` contention across HTTP workers) | **BLOCKED** | Cannot execute without a live staging PostgreSQL instance and deployed Vercel staging API. |
+

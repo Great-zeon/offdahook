@@ -33,3 +33,4 @@ Once staging passes all blocked gates:
 2. Execute read-only duplicate detection query on `orders.stripe_session_id` before applying DDL; reconcile manually if duplicates exist.
 3. Apply [`OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql) in production Supabase SQL Editor.
 4. Rollback trigger: In Vercel Deployments, revert instantly to previous known-good deployment if HTTP 5xx rates elevate; database DDL uses additive tables/indexes/functions (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`) so prior app code remains compatible during rollback window.
+
