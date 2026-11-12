@@ -1004,35 +1004,62 @@
         return SEED_PRODUCTS;
       }
 
-      async function syncProductToCloud(product) {
+      function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      async function syncProductToCloud(product, method = 'PUT') {
         if (!window.location.protocol.startsWith('http')) return;
         const currentToken = sessionStorage.getItem(STORAGE_KEY_TOKEN) || '';
         try {
-          await fetch('/api/products', {
-            method: 'PUT',
+          const parsedPrice = typeof product.price === 'number'
+            ? product.price
+            : (product.numericPrice || parseFloat(String(product.price || '0').replace(/[^0-9.]/g, '')) || 0);
+
+          const payload = method === 'DELETE'
+            ? { id: product.id }
+            : {
+                id: product.id,
+                stock: product.stock,
+                price: parsedPrice,
+                title: product.title,
+                category: product.category,
+                volume: product.volume,
+                image: product.image,
+                description: product.description
+              };
+
+          const res = await fetch('/api/products', {
+            method,
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${currentToken}`
             },
-            body: JSON.stringify({
-              id: product.id,
-              stock: product.stock,
-              price: product.numericPrice || parseFloat((product.price || '0').replace(/[^0-9.]/g, '')),
-              title: product.title,
-              category: product.category,
-              description: product.description
-            })
+            body: JSON.stringify(payload)
           });
-        } catch (e) {}
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            showToast(`Cloud sync error (${res.status}): ${errData.error || 'Failed to save to database'}`);
+          }
+        } catch (e) {
+          showToast('Cloud sync failed: network error');
+        }
       }
 
-      function saveProducts(products, targetProduct = null) {
+      function saveProducts(products, targetProduct = null, cloudMethod = 'PUT') {
         localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
         updateMetrics();
         renderProducts();
-        showToast('Inventory updated successfully');
+        showToast('Inventory updated');
         if (targetProduct) {
-          syncProductToCloud(targetProduct);
+          syncProductToCloud(targetProduct, cloudMethod);
         }
       }
 
@@ -1048,7 +1075,7 @@
         if (!window.location.protocol.startsWith('http')) return;
         const currentToken = sessionStorage.getItem(STORAGE_KEY_TOKEN) || '';
         try {
-          await fetch('/api/orders', {
+          const res = await fetch('/api/orders', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -1061,7 +1088,36 @@
               tracking_number: trackingNumber
             })
           });
-        } catch (e) {}
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            showToast(`Order sync error (${res.status}): ${errData.error || 'Failed'}`);
+          }
+        } catch (e) {
+          showToast('Order sync failed: network error');
+        }
+      }
+
+      async function retryOutboxNotifications() {
+        if (!window.location.protocol.startsWith('http')) return;
+        const currentToken = sessionStorage.getItem(STORAGE_KEY_TOKEN) || '';
+        try {
+          const res = await fetch('/api/notifications-retry', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentToken}`
+            }
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success) {
+            showToast(`Notification outbox checked (${data.processed || 0} processed)`);
+            syncCloudBackend();
+          } else {
+            showToast(`Retry failed: ${data.error || res.status}`);
+          }
+        } catch (e) {
+          showToast('Notification retry error');
+        }
       }
 
       function saveOrders(orders, updatedOrderId = null, newStatus = null, carrier = null, trackingNumber = null) {
@@ -1257,37 +1313,42 @@
             statusBadge = `<span class="status-badge low-stock"><span style="width:6px; height:6px; border-radius:50%; background:#F59E0B;"></span> Only ${stock} Left</span>`;
           }
 
+          const parsedPrice = typeof prod.price === 'number'
+            ? prod.price
+            : (prod.numericPrice || parseFloat(String(prod.price || '0').replace(/[^0-9.]/g, '')) || 0);
+          const displayPrice = `$${parsedPrice.toFixed(2)}`;
+
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>
               <div class="admin-prod-cell">
-                <img src="${prod.image || 'assets/logo-emblem.jpg'}" alt="${prod.title}" class="admin-prod-thumb" onerror="this.src='assets/logo-emblem.jpg'">
+                <img src="${escapeHtml(prod.image || 'assets/logo-emblem.jpg')}" alt="${escapeHtml(prod.title)}" class="admin-prod-thumb" onerror="this.src='assets/logo-emblem.jpg'">
                 <div>
-                  <div class="admin-prod-title">${prod.title}</div>
-                  <div class="admin-prod-category">${prod.volume || prod.category || 'Formulation'}</div>
+                  <div class="admin-prod-title">${escapeHtml(prod.title)}</div>
+                  <div class="admin-prod-category">${escapeHtml(prod.volume || prod.category || 'Formulation')}</div>
                 </div>
               </div>
             </td>
-            <td><strong>${prod.price || '$' + (prod.numericPrice || 25).toFixed(2)}</strong></td>
+            <td><strong>${displayPrice}</strong></td>
             <td>
               <div class="admin-stock-control">
-                <button type="button" class="admin-stock-stepper stock-dec" data-id="${prod.id}">-</button>
-                <input type="number" min="0" class="admin-stock-input" data-id="${prod.id}" value="${stock}">
-                <button type="button" class="admin-stock-stepper stock-inc" data-id="${prod.id}">+</button>
+                <button type="button" class="admin-stock-stepper stock-dec" data-id="${escapeHtml(prod.id)}">-</button>
+                <input type="number" min="0" class="admin-stock-input" data-id="${escapeHtml(prod.id)}" value="${stock}">
+                <button type="button" class="admin-stock-stepper stock-inc" data-id="${escapeHtml(prod.id)}">+</button>
               </div>
             </td>
             <td>${statusBadge}</td>
             <td style="text-align: right;">
               <div style="display: inline-flex; gap: 8px;">
-                <button type="button" class="admin-btn-secondary edit-prod-btn" data-id="${prod.id}">Edit</button>
-                <button type="button" class="admin-btn-secondary delete-prod-btn" data-id="${prod.id}" style="color:#FF6B8B;">Delete</button>
+                <button type="button" class="admin-btn-secondary edit-prod-btn" data-id="${escapeHtml(prod.id)}">Edit</button>
+                <button type="button" class="admin-btn-secondary delete-prod-btn" data-id="${escapeHtml(prod.id)}" style="color:#FF6B8B;">Delete</button>
               </div>
             </td>
           `;
           tbody.appendChild(tr);
         });
 
-        // Attach listeners for stock steppers and inputs
+        // Attach listeners for stock steppers and inputs (synced to Supabase)
         tbody.querySelectorAll('.stock-dec').forEach(btn => {
           btn.addEventListener('click', () => {
             const id = btn.getAttribute('data-id');
@@ -1295,7 +1356,7 @@
             const p = prods.find(item => item.id === id);
             if (p && p.stock > 0) {
               p.stock = parseInt(p.stock, 10) - 1;
-              saveProducts(prods);
+              saveProducts(prods, p, 'PUT');
             }
           });
         });
@@ -1307,7 +1368,7 @@
             const p = prods.find(item => item.id === id);
             if (p) {
               p.stock = (parseInt(p.stock, 10) || 0) + 1;
-              saveProducts(prods);
+              saveProducts(prods, p, 'PUT');
             }
           });
         });
@@ -1320,7 +1381,7 @@
             const p = prods.find(item => item.id === id);
             if (p) {
               p.stock = val;
-              saveProducts(prods);
+              saveProducts(prods, p, 'PUT');
             }
           });
         });
@@ -1333,15 +1394,15 @@
           });
         });
 
-        // Delete button
+        // Delete/Archive button (synced to Supabase)
         tbody.querySelectorAll('.delete-prod-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             const id = btn.getAttribute('data-id');
             const prods = getProducts();
             const p = prods.find(item => item.id === id);
-            if (p && confirm(`Are you sure you want to delete "${p.title}" from your store?`)) {
+            if (p && confirm(`Are you sure you want to archive "${p.title}" from your store?`)) {
               const updated = prods.filter(item => item.id !== id);
-              saveProducts(updated);
+              saveProducts(updated, p, 'DELETE');
             }
           });
         });
@@ -1373,11 +1434,15 @@
         const prod = prods.find(p => p.id === id);
         if (!prod) return;
 
+        const cleanPrice = typeof prod.price === 'number'
+          ? prod.price.toFixed(2)
+          : String(prod.price || '25.00').replace(/[^0-9.]/g, '');
+
         document.getElementById('productModalHeading').textContent = 'Edit Product';
         document.getElementById('formProductId').value = prod.id;
         document.getElementById('formTitle').value = prod.title || '';
-        document.getElementById('formPrice').value = (prod.price || '$25.00').replace(/[^0-9.]/g, '');
-        document.getElementById('formStock').value = prod.stock || 0;
+        document.getElementById('formPrice').value = cleanPrice;
+        document.getElementById('formStock').value = prod.stock ?? 0;
         document.getElementById('formCategory').value = prod.category || '';
         document.getElementById('formImage').value = prod.image || '';
         document.getElementById('formDesc').value = prod.description || '';
@@ -1393,15 +1458,18 @@
         const id = document.getElementById('formProductId').value;
         const title = document.getElementById('formTitle').value.trim();
         const rawPrice = parseFloat(document.getElementById('formPrice').value) || 25.00;
-        const stock = parseInt(document.getElementById('formStock').value, 10) || 0;
+        const stockVal = parseInt(document.getElementById('formStock').value, 10);
+        const stock = isNaN(stockVal) ? 0 : Math.max(0, stockVal);
         const category = document.getElementById('formCategory').value.trim();
         const image = document.getElementById('formImage').value.trim() || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg';
         const desc = document.getElementById('formDesc').value.trim();
 
         const prods = getProducts();
+        let targetProduct = null;
+        let cloudMethod = 'PUT';
 
         if (id) {
-          // Edit
+          // Edit existing product
           const p = prods.find(item => item.id === id);
           if (p) {
             p.title = title;
@@ -1411,11 +1479,12 @@
             p.category = category;
             p.image = image;
             p.description = desc;
+            targetProduct = p;
           }
         } else {
-          // Create new
+          // Create new product
           const newId = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `prod-${Date.now()}`;
-          prods.unshift({
+          targetProduct = {
             id: newId,
             title: title,
             price: `$${rawPrice.toFixed(2)}`,
@@ -1425,10 +1494,12 @@
             volume: 'Standard Size',
             image: image,
             description: desc
-          });
+          };
+          prods.unshift(targetProduct);
+          cloudMethod = 'POST';
         }
 
-        saveProducts(prods);
+        saveProducts(prods, targetProduct, cloudMethod);
         productModal.classList.remove('active');
       });
 
@@ -1446,31 +1517,53 @@
         orders.forEach(order => {
           const fulfillment = order.fulfillment_status || order.fulfillmentStatus || 'Pending';
           const isShipped = fulfillment === 'Shipped';
+          const isBackordered = fulfillment === 'Backordered_Action_Required';
           const customerName = order.customer_name || order.customerName || 'Crown Client';
           const customerEmail = order.customer_email || order.customerEmail || '';
           const total = parseFloat(order.total_amount || order.totalAmount || 0);
           const orderDate = (order.created_at || order.date || '').replace('T', ' ').substring(0, 16);
-          const itemsSummary = (order.items || []).map(i => `${i.qty || i.quantity || 1}x ${i.title}`).join(', ');
-          const trackingInfo = order.tracking_number ? `<div style="font-size:11px; color:#34D399; margin-top:3px;">${order.carrier || 'Tracking'}: ${order.tracking_number}</div>` : '';
+          const itemsSummary = (order.items || []).map(i => `${Number(i.qty || i.quantity || 1)}x ${escapeHtml(i.title || i.id)}`).join(', ');
+          const trackingInfo = order.tracking_number ? `<div style="font-size:11px; color:#34D399; margin-top:3px;">${escapeHtml(order.carrier || 'Tracking')}: ${escapeHtml(order.tracking_number)}</div>` : '';
+
+          const emailStatus = order.email_status || 'pending';
+          const merchantStatus = order.merchant_alert_status || 'pending';
+          const hasFailedNotif = ['failed', 'retrying', 'bounced', 'complained'].includes(emailStatus) || ['failed', 'retrying', 'bounced'].includes(merchantStatus);
+          const notifBadge = hasFailedNotif
+            ? `<div style="font-size:10.5px; color:#F59E0B; margin-top:3px;">⚠️ Alert: ${escapeHtml(merchantStatus)} | Receipt: ${escapeHtml(emailStatus)}</div>`
+            : `<div style="font-size:10.5px; color:#8E8A9F; margin-top:3px;">Receipt: ${escapeHtml(emailStatus)}</div>`;
+
+          let statusClass = 'pending';
+          let statusLabel = fulfillment;
+          if (isShipped) {
+            statusClass = 'shipped';
+            statusLabel = '✓ Shipped';
+          } else if (isBackordered) {
+            statusClass = 'sold-out';
+            statusLabel = '⚠️ Backordered';
+          }
 
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td><strong style="color:var(--admin-pink-light);">${order.id}</strong></td>
-            <td style="color:#9C97AA; font-size:12px;">${orderDate}</td>
+            <td><strong style="color:var(--admin-pink-light);">${escapeHtml(order.id)}</strong></td>
+            <td style="color:#9C97AA; font-size:12px;">${escapeHtml(orderDate)}</td>
             <td>
-              <div><strong>${customerName}</strong></div>
-              <div style="font-size:11.5px; color:#8E8A9F;">${customerEmail}</div>
+              <div><strong>${escapeHtml(customerName)}</strong></div>
+              <div style="font-size:11.5px; color:#8E8A9F;">${escapeHtml(customerEmail)}</div>
             </td>
             <td style="max-width:260px; font-size:12.5px;">${itemsSummary || 'Signature Products'}</td>
             <td><strong>$${total.toFixed(2)}</strong></td>
             <td>
-              <button type="button" class="status-badge ${isShipped ? 'shipped' : 'pending'} toggle-ship-btn" data-id="${order.id}" style="cursor:pointer; border-radius:4px;">
-                ${isShipped ? '✓ Shipped' : 'Pending'}
+              <button type="button" class="status-badge ${statusClass} toggle-ship-btn" data-id="${escapeHtml(order.id)}" style="cursor:pointer; border-radius:4px;">
+                ${escapeHtml(statusLabel)}
               </button>
               ${trackingInfo}
+              ${notifBadge}
             </td>
             <td style="text-align: right;">
-              <button type="button" class="admin-btn-secondary view-receipt-btn" data-id="${order.id}">View Receipt</button>
+              <div style="display:inline-flex; gap:6px;">
+                <button type="button" class="admin-btn-secondary view-receipt-btn" data-id="${escapeHtml(order.id)}">View Receipt</button>
+                ${hasFailedNotif ? `<button type="button" class="admin-btn-secondary retry-notif-btn" title="Retry Notification Outbox" style="color:#F59E0B;">Retry Email</button>` : ''}
+              </div>
             </td>
           `;
           tbody.appendChild(tr);
@@ -1510,6 +1603,13 @@
             openReceiptModal(id);
           });
         });
+
+        // Outbox retry button
+        tbody.querySelectorAll('.retry-notif-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            retryOutboxNotifications();
+          });
+        });
       }
 
       // Receipt Modal
@@ -1539,13 +1639,13 @@
 
         const container = document.getElementById('receiptContent');
         const itemsHtml = (order.items || []).map(item => {
-          const qty = item.qty || item.quantity || 1;
+          const qty = Number(item.qty || item.quantity || 1);
           const price = parseFloat(item.price || 0);
           return `
             <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
               <div>
-                <strong>${item.title}</strong>
-                <div style="font-size:11.5px; color:#8E8A9F;">Qty: ${qty} ${item.variant ? '• ' + item.variant : ''}</div>
+                <strong>${escapeHtml(item.title || item.id)}</strong>
+                <div style="font-size:11.5px; color:#8E8A9F;">Qty: ${qty} ${item.variant ? '• ' + escapeHtml(item.variant) : ''}</div>
               </div>
               <strong>$${(price * qty).toFixed(2)}</strong>
             </div>
@@ -1554,7 +1654,13 @@
 
         const trackingSection = order.tracking_number ? `
           <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3); border-radius:6px; padding:10px; margin-bottom:14px; font-size:12px; color:#34D399;">
-            <strong>Shipment Courier:</strong> ${order.carrier || 'USPS'} • <strong>Tracking Number:</strong> ${order.tracking_number}
+            <strong>Shipment Courier:</strong> ${escapeHtml(order.carrier || 'USPS')} • <strong>Tracking Number:</strong> ${escapeHtml(order.tracking_number)}
+          </div>
+        ` : '';
+
+        const backorderNote = (order.fulfillment_status === 'Backordered_Action_Required') ? `
+          <div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:6px; padding:10px; margin-bottom:14px; font-size:12px; color:#FCA5A5;">
+            <strong>⚠️ Inventory Shortfall:</strong> ${escapeHtml(order.notes || 'One or more items were backordered at purchase. Contact client or issue refund.')}
           </div>
         ` : '';
 
@@ -1568,19 +1674,20 @@
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Billed &amp; Shipped To:</div>
-              <div><strong>${customerName}</strong></div>
-              <div style="font-size:12px; color:#C2BFD0;">${formattedAddress}</div>
-              <div style="font-size:12px; color:#C2BFD0;">${customerEmail}</div>
-              <div style="font-size:12px; color:#C2BFD0;">${customerPhone}</div>
+              <div><strong>${escapeHtml(customerName)}</strong></div>
+              <div style="font-size:12px; color:#C2BFD0;">${escapeHtml(formattedAddress)}</div>
+              <div style="font-size:12px; color:#C2BFD0;">${escapeHtml(customerEmail)}</div>
+              <div style="font-size:12px; color:#C2BFD0;">${escapeHtml(customerPhone)}</div>
             </div>
             <div style="text-align:right;">
               <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Order Reference:</div>
-              <div style="font-size:16px; font-weight:800; color:var(--admin-pink-light);">${order.id}</div>
-              <div style="font-size:12px; color:#9C97AA;">${orderDate}</div>
-              <div style="font-size:12px; color:#34D399; font-weight:700; margin-top:4px;">${paymentStatus}</div>
+              <div style="font-size:16px; font-weight:800; color:var(--admin-pink-light);">${escapeHtml(order.id)}</div>
+              <div style="font-size:12px; color:#9C97AA;">${escapeHtml(orderDate)}</div>
+              <div style="font-size:12px; color:#34D399; font-weight:700; margin-top:4px;">${escapeHtml(paymentStatus)}</div>
             </div>
           </div>
 
+          ${backorderNote}
           ${trackingSection}
 
           <div style="margin-bottom:16px;">
@@ -1597,9 +1704,6 @@
             Verified order record processed by Off Da Hook Salon Suites.
           </div>
         `;
-
-        receiptModal.classList.add('active');
-      }
 
         receiptModal.classList.add('active');
       }

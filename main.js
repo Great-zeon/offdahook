@@ -3354,31 +3354,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      const escapeConfirmHtml = (str) => String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
       const customerName = order.customer_name || order.customerName || 'Valued Crown Client';
       const orderId = order.id || 'ODH-ORDER';
       const total = parseFloat(order.total_amount || order.totalAmount || 0);
+      const fulfillmentStatus = order.fulfillmentStatus || order.fulfillment_status || 'Pending';
+      const isBackordered = fulfillmentStatus === 'Backordered_Action_Required';
       const shippingAddress = typeof order.shipping_address === 'string'
         ? order.shipping_address
-        : (order.shippingAddress || 'On file with suite concierge');
+        : (order.shippingAddress || 'Shipping details on file with Stripe');
 
       document.getElementById('confirmCustomerName').textContent = customerName;
       document.getElementById('confirmOrderId').textContent = orderId;
 
       const itemsHtml = (order.items || []).map(i => {
-        const qty = i.qty || i.quantity || 1;
+        const qty = Number(i.qty || i.quantity || 1);
         const price = parseFloat(i.price || 0);
         return `
           <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-            <span>${qty}x ${i.title} ${i.variant ? '(' + i.variant + ')' : ''}</span>
+            <span>${qty}x ${escapeConfirmHtml(i.title || 'Crown Formula')} ${i.variant ? '(' + escapeConfirmHtml(i.variant) + ')' : ''}</span>
             <span style="font-weight:700;">$${(price * qty).toFixed(2)}</span>
           </div>
         `;
       }).join('');
 
+      const backorderNotice = isBackordered ? `
+        <div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); border-radius:6px; padding:10px; margin-bottom:12px; color:#FCD34D; font-size:12.5px;">
+          <strong>Backorder Notice:</strong> Payment was confirmed, however one or more formulas are temporarily low on inventory. Master Stylist Shawnese Parker has been notified and will contact you shortly.
+        </div>
+      ` : '';
+
       document.getElementById('confirmOrderDetails').innerHTML = `
+        ${backorderNotice}
         <div style="border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:10px; margin-bottom:10px;">
           <div style="font-size:11px; text-transform:uppercase; color:#8E8A9F;">Shipping Destination:</div>
-          <div style="color:#FFFFFF; font-weight:600;">${shippingAddress}</div>
+          <div style="color:#FFFFFF; font-weight:600;">${escapeConfirmHtml(shippingAddress)}</div>
         </div>
         ${itemsHtml}
         <div style="display:flex; justify-content:space-between; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px; margin-top:10px; font-weight:800; font-size:14.5px;">

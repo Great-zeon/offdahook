@@ -105,8 +105,8 @@ module.exports = async (req, res) => {
 
     const { pin } = req.body || {};
 
-    if (!pin) {
-      return res.status(400).json({ success: false, error: 'Passcode is required' });
+    if (typeof pin !== 'string' || !pin.trim()) {
+      return res.status(400).json({ success: false, error: 'Valid passcode string is required' });
     }
 
     // 2. Validate PIN with Constant-Time Comparison

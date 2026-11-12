@@ -96,6 +96,13 @@ function validateStripeSession(session, options = {}) {
       throw err;
     }
 
+    // Prevent reuse of an already-processed intent by a different Stripe session
+    if (intent.status === 'completed' && intent.stripe_session_id && intent.stripe_session_id !== session.id) {
+      const err = new Error(`Checkout intent ${intent.id} was already processed for another session`);
+      err.code = 'INTENT_ALREADY_USED';
+      throw err;
+    }
+
     // Verify ownership: ensure intent belongs to this exact Stripe session
     if (intent.stripe_session_id && intent.stripe_session_id !== session.id) {
       const err = new Error(`Checkout intent session mismatch: expected ${intent.stripe_session_id}, got ${session.id}`);
@@ -110,12 +117,21 @@ function validateStripeSession(session, options = {}) {
       throw err;
     }
 
-    // Reconcile authoritative expected total against Stripe paid amount
-    const expectedTotalCents = Math.round(Number(intent.total_amount) * 100);
-    if (!Number.isNaN(expectedTotalCents) && session.amount_total < expectedTotalCents - 1) {
-      const err = new Error(`Stripe paid amount (${session.amount_total}c) is below expected checkout intent total (${expectedTotalCents}c)`);
-      err.code = 'AMOUNT_MISMATCH';
-      throw err;
+    // Integer-Cents Reconciliation against Stripe's authoritative paid total
+    const expectedTotalCents = Number.isInteger(intent.total_cents) && intent.total_cents > 0
+      ? intent.total_cents
+      : Math.round(Number(intent.total_amount) * 100);
+
+    const taxCents = Number(session.total_details?.amount_tax || 0);
+    const discountCents = Number(session.total_details?.amount_discount || 0);
+    const expectedAdjustedCents = expectedTotalCents + taxCents - discountCents;
+
+    if (!Number.isNaN(expectedTotalCents)) {
+      if (session.amount_total < expectedAdjustedCents || session.amount_total !== expectedAdjustedCents) {
+        const err = new Error(`Stripe paid amount (${session.amount_total}c) does not match expected checkout intent total (${expectedAdjustedCents}c)`);
+        err.code = 'AMOUNT_MISMATCH';
+        throw err;
+      }
     }
 
     if (Array.isArray(intent.items)) {

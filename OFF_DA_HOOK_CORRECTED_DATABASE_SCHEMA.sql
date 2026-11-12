@@ -168,6 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status);
 -- ------------------------------------------------------------------------
 -- 4. Server-Authoritative Checkout Intents Table
 -- Eliminates client-truncated JSON metadata from Stripe checkout sessions
+-- Stores integer cents deterministically alongside decimal values
 -- ------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS checkout_intents (
   id TEXT PRIMARY KEY,
@@ -175,6 +176,9 @@ CREATE TABLE IF NOT EXISTS checkout_intents (
   subtotal NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
   shipping_amount NUMERIC(10, 2) NOT NULL DEFAULT 6.95,
   total_amount NUMERIC(10, 2) NOT NULL,
+  subtotal_cents INTEGER NOT NULL DEFAULT 0,
+  shipping_cents INTEGER NOT NULL DEFAULT 695,
+  total_cents INTEGER NOT NULL DEFAULT 0,
   currency TEXT NOT NULL DEFAULT 'usd',
   stripe_session_id TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled', 'expired')),
@@ -185,6 +189,9 @@ CREATE TABLE IF NOT EXISTS checkout_intents (
 
 ALTER TABLE checkout_intents ADD COLUMN IF NOT EXISTS stripe_session_id TEXT;
 ALTER TABLE checkout_intents ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE checkout_intents ADD COLUMN IF NOT EXISTS subtotal_cents INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE checkout_intents ADD COLUMN IF NOT EXISTS shipping_cents INTEGER NOT NULL DEFAULT 695;
+ALTER TABLE checkout_intents ADD COLUMN IF NOT EXISTS total_cents INTEGER NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_checkout_intents_session ON checkout_intents(stripe_session_id);
 CREATE INDEX IF NOT EXISTS idx_checkout_intents_status ON checkout_intents(status, expires_at);
@@ -205,9 +212,7 @@ CREATE TABLE IF NOT EXISTS order_notifications (
   recipient TEXT NOT NULL,
   subject TEXT NOT NULL,
   html_body TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN (
-    'queued', 'processing', 'accepted', 'delivered', 'failed', 'retrying'
-  )),
+  status TEXT NOT NULL DEFAULT 'queued',
   attempt_count INTEGER NOT NULL DEFAULT 0,
   max_attempts INTEGER NOT NULL DEFAULT 5,
   last_attempt_at TIMESTAMPTZ,
@@ -218,8 +223,14 @@ CREATE TABLE IF NOT EXISTS order_notifications (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE order_notifications DROP CONSTRAINT IF EXISTS order_notifications_status_check;
+ALTER TABLE order_notifications ADD CONSTRAINT order_notifications_status_check CHECK (
+  status IN ('queued', 'processing', 'accepted', 'delivered', 'bounced', 'complained', 'delayed', 'failed', 'retrying')
+);
+
 CREATE INDEX IF NOT EXISTS idx_order_notifications_order_id ON order_notifications(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_notifications_status ON order_notifications(status, next_retry_at);
+CREATE INDEX IF NOT EXISTS idx_order_notifications_provider_id ON order_notifications(provider_message_id) WHERE provider_message_id IS NOT NULL;
 
 -- ------------------------------------------------------------------------
 -- 6. Dedicated Stored Procedure: Record Webhook Failure Durably
@@ -407,7 +418,7 @@ BEGIN
     SELECT * INTO v_existing_event
     FROM webhook_events
     WHERE id = p_event_id
-    LIMIT 1;
+    FOR UPDATE;
 
     IF v_existing_event.id IS NOT NULL THEN
       IF v_existing_event.status = 'completed' THEN
@@ -416,13 +427,22 @@ BEGIN
         WHERE stripe_session_id = v_stripe_session_id
         LIMIT 1;
 
-        RETURN jsonb_build_object(
-          'success', FALSE,
-          'duplicate', TRUE,
-          'in_flight', FALSE,
-          'order_id', v_existing_order_id,
-          'message', 'Webhook event has already been completed.'
-        );
+        IF v_existing_order_id IS NOT NULL THEN
+          RETURN jsonb_build_object(
+            'success', FALSE,
+            'duplicate', TRUE,
+            'in_flight', FALSE,
+            'order_id', v_existing_order_id,
+            'message', 'Webhook event has already been completed.'
+          );
+        END IF;
+
+        -- Corrupted state defense: event marked completed without persisted order; reclaim cleanly
+        UPDATE webhook_events
+        SET attempt_count = attempt_count + 1,
+            last_attempt_at = NOW(),
+            status = 'processing'
+        WHERE id = p_event_id;
       ELSIF v_existing_event.status = 'processing' AND v_existing_event.last_attempt_at > NOW() - INTERVAL '30 seconds' THEN
         -- Active in-flight processing lease: Signal retryable in-flight state (NEVER false duplicate 200)
         RETURN jsonb_build_object(
@@ -549,10 +569,13 @@ BEGIN
       );
     END IF;
 
-    -- Complete checkout intent if linked
+    -- Complete checkout intent & bind session atomically if racing
     UPDATE checkout_intents
-    SET status = 'completed', updated_at = NOW()
-    WHERE stripe_session_id = v_stripe_session_id;
+    SET status = 'completed',
+        stripe_session_id = COALESCE(stripe_session_id, v_stripe_session_id),
+        updated_at = NOW()
+    WHERE stripe_session_id = v_stripe_session_id
+       OR (p_order->>'checkout_intent_id' IS NOT NULL AND id = p_order->>'checkout_intent_id');
 
     IF p_event_id IS NOT NULL AND btrim(p_event_id) != '' THEN
       UPDATE webhook_events
@@ -643,10 +666,13 @@ BEGIN
     );
   END IF;
 
-  -- Complete checkout intent if linked
+  -- Complete checkout intent & bind session atomically if racing
   UPDATE checkout_intents
-  SET status = 'completed', updated_at = NOW()
-  WHERE stripe_session_id = v_stripe_session_id;
+  SET status = 'completed',
+      stripe_session_id = COALESCE(stripe_session_id, v_stripe_session_id),
+      updated_at = NOW()
+  WHERE stripe_session_id = v_stripe_session_id
+     OR (p_order->>'checkout_intent_id' IS NOT NULL AND id = p_order->>'checkout_intent_id');
 
   IF p_event_id IS NOT NULL AND btrim(p_event_id) != '' THEN
     UPDATE webhook_events
@@ -685,11 +711,29 @@ EXCEPTION
     END IF;
 
     IF v_constraint_name ILIKE '%webhook_events%' THEN
+      -- Concurrent insert race on webhook_events: check whether the order is actually committed
+      SELECT id INTO v_existing_order_id
+      FROM orders
+      WHERE stripe_session_id = v_stripe_session_id
+      LIMIT 1;
+
+      IF v_existing_order_id IS NOT NULL THEN
+        RETURN jsonb_build_object(
+          'success', FALSE,
+          'duplicate', TRUE,
+          'in_flight', FALSE,
+          'order_id', v_existing_order_id,
+          'message', 'Webhook event race resolved: order already committed.'
+        );
+      END IF;
+
+      -- Worker 1 is actively processing; instruct caller to return HTTP 503 for retry safety
       RETURN jsonb_build_object(
         'success', FALSE,
-        'duplicate', TRUE,
-        'in_flight', FALSE,
-        'message', 'Webhook event ID has already been recorded.'
+        'duplicate', FALSE,
+        'in_flight', TRUE,
+        'order_id', NULL,
+        'message', 'Webhook event is concurrently in flight; retry required.'
       );
     END IF;
 
@@ -727,6 +771,47 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------
+-- 8b. Atomic Outbox Lease Claiming Procedure
+-- Prevents two workers from sending duplicate notifications AND recovers
+-- stale 'processing' leases (>60s) if a previous worker crashed.
+-- ------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION claim_pending_notifications(
+  p_order_id TEXT DEFAULT NULL,
+  p_limit INTEGER DEFAULT 20
+)
+RETURNS SETOF order_notifications
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH target_rows AS (
+    SELECT n.id
+    FROM order_notifications n
+    WHERE (p_order_id IS NULL OR n.order_id = p_order_id)
+      AND n.attempt_count < n.max_attempts
+      AND (
+        n.status = 'queued'
+        OR (n.status = 'retrying' AND (n.next_retry_at IS NULL OR n.next_retry_at <= NOW()))
+        OR (n.status = 'processing' AND n.last_attempt_at <= NOW() - INTERVAL '60 seconds')
+      )
+    ORDER BY n.created_at ASC
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 20), 1), 100)
+    FOR UPDATE SKIP LOCKED
+  )
+  UPDATE order_notifications o
+  SET status = 'processing',
+      attempt_count = o.attempt_count + 1,
+      last_attempt_at = NOW(),
+      updated_at = NOW()
+  FROM target_rows t
+  WHERE o.id = t.id
+  RETURNING o.*;
+END;
+$$;
+
+-- ------------------------------------------------------------------------
 -- 9. Function Execution Permissions (SECURITY DEFINER Hardening)
 -- Revoke PUBLIC/anon/authenticated execution; grant exclusively to service_role
 -- ------------------------------------------------------------------------
@@ -738,6 +823,9 @@ GRANT EXECUTE ON FUNCTION process_paid_order_atomic(JSONB, JSONB, TEXT) TO servi
 
 REVOKE EXECUTE ON FUNCTION deduct_product_stock_atomic(TEXT, INTEGER) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION deduct_product_stock_atomic(TEXT, INTEGER) TO service_role;
+
+REVOKE EXECUTE ON FUNCTION claim_pending_notifications(TEXT, INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION claim_pending_notifications(TEXT, INTEGER) TO service_role;
 
 -- ------------------------------------------------------------------------
 -- 10. Row Level Security Policies

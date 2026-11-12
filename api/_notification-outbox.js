@@ -20,9 +20,9 @@ function sanitizeErrorMessage(err) {
 }
 
 /**
- * Send an email via native HTTPS call to Resend REST API with strict timeout
+ * Send an email via native HTTPS call to Resend REST API with strict timeout & Idempotency-Key
  */
-function sendEmailViaResendRest(to, subject, htmlBody) {
+function sendEmailViaResendRest(to, subject, htmlBody, idempotencyKey = null) {
   return new Promise((resolve) => {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
@@ -36,15 +36,20 @@ function sendEmailViaResendRest(to, subject, htmlBody) {
       html: htmlBody
     });
 
+    const headers = {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload)
+    };
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
+
     let isDone = false;
 
     const req = https.request('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
+      headers
     }, (res) => {
       let data = '';
       res.on('data', chunk => { data += chunk; });
@@ -83,8 +88,126 @@ function sendEmailViaResendRest(to, subject, htmlBody) {
 }
 
 /**
- * Dispatches all pending notifications for a specific order.
- * Called immediately after atomic order creation or during webhook retry.
+ * Atomically claims pending/retrying/stale-processing notifications using PostgreSQL FOR UPDATE SKIP LOCKED.
+ */
+async function claimNotifications(supabase, orderId = null, limit = 20) {
+  const { data: claimed, error: rpcErr } = await supabase.rpc('claim_pending_notifications', {
+    p_order_id: orderId,
+    p_limit: limit
+  });
+
+  if (!rpcErr && Array.isArray(claimed)) {
+    return claimed;
+  }
+
+  // Fallback atomic optimistic claim if RPC hasn't been compiled yet
+  let query = supabase
+    .from('order_notifications')
+    .select('*')
+    .in('status', ['queued', 'retrying'])
+    .limit(limit);
+  if (orderId) query = query.eq('order_id', orderId);
+
+  const { data: candidates } = await query;
+  if (!candidates || candidates.length === 0) return [];
+
+  const claimedRows = [];
+  for (const row of candidates) {
+    const { data: updatedRow } = await supabase
+      .from('order_notifications')
+      .update({
+        status: 'processing',
+        attempt_count: (row.attempt_count || 0) + 1,
+        last_attempt_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', row.id)
+      .in('status', ['queued', 'retrying'])
+      .select()
+      .maybeSingle();
+
+    if (updatedRow) claimedRows.push(updatedRow);
+  }
+  return claimedRows;
+}
+
+/**
+ * Processes a single claimed notification row
+ */
+async function processClaimedNotification(supabase, notif) {
+  const attemptNum = notif.attempt_count || 1;
+  const idempotencyKey = `notif-${notif.id}-attempt-${attemptNum}`;
+  const sendResult = await sendEmailViaResendRest(notif.recipient, notif.subject, notif.html_body, idempotencyKey);
+
+  if (sendResult.success) {
+    // Provider accepted request (note: distinct from 'delivered', which arrives via Resend webhook)
+    await supabase
+      .from('order_notifications')
+      .update({
+        status: 'accepted',
+        provider_message_id: sendResult.id || null,
+        last_error: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', notif.id);
+
+    if (notif.notification_type.startsWith('merchant')) {
+      await supabase.from('orders').update({
+        merchant_alert_sent: true,
+        merchant_alert_status: 'accepted',
+        merchant_alert_error: null
+      }).eq('id', notif.order_id);
+    } else {
+      await supabase.from('orders').update({
+        email_receipt_sent: true,
+        email_status: 'accepted',
+        resend_id: sendResult.id || null,
+        email_sent_at: new Date().toISOString(),
+        email_last_error: null
+      }).eq('id', notif.order_id);
+    }
+
+    return { id: notif.id, order_id: notif.order_id, status: 'accepted', providerMessageId: sendResult.id };
+  }
+
+  const sanitizedErr = sanitizeErrorMessage(sendResult.error);
+  const isPermanentFailure = attemptNum >= (notif.max_attempts || 5);
+  const newStatus = isPermanentFailure ? 'failed' : 'retrying';
+
+  const backoffMinutes = Math.min(attemptNum * 5, 60);
+  const nextRetryAt = isPermanentFailure
+    ? null
+    : new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
+
+  await supabase
+    .from('order_notifications')
+    .update({
+      status: newStatus,
+      last_error: sanitizedErr,
+      next_retry_at: nextRetryAt,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', notif.id);
+
+  if (notif.notification_type.startsWith('merchant')) {
+    await supabase.from('orders').update({
+      merchant_alert_sent: false,
+      merchant_alert_status: newStatus,
+      merchant_alert_error: sanitizedErr
+    }).eq('id', notif.order_id);
+  } else {
+    await supabase.from('orders').update({
+      email_receipt_sent: false,
+      email_status: newStatus,
+      email_last_error: sanitizedErr
+    }).eq('id', notif.order_id);
+  }
+
+  return { id: notif.id, order_id: notif.order_id, status: newStatus, error: sanitizedErr };
+}
+
+/**
+ * Atomically claims & dispatches all pending notifications for a specific order.
  */
 async function dispatchOrderNotifications(supabase, orderId) {
   if (!supabase || !orderId) {
@@ -92,104 +215,14 @@ async function dispatchOrderNotifications(supabase, orderId) {
   }
 
   try {
-    const { data: notifications, error } = await supabase
-      .from('order_notifications')
-      .select('*')
-      .eq('order_id', orderId)
-      .in('status', ['queued', 'retrying']);
-
-    if (error) {
-      console.error(`Failed to fetch notifications for order ${orderId}:`, error.message);
-      return { success: false, error: error.message };
-    }
-
-    if (!notifications || notifications.length === 0) {
-      return { success: true, count: 0, message: 'No pending notifications for order' };
+    const claimed = await claimNotifications(supabase, orderId, 20);
+    if (claimed.length === 0) {
+      return { success: true, count: 0, message: 'No pending notifications available to claim' };
     }
 
     const results = [];
-
-    for (const notif of notifications) {
-      // Mark as processing
-      await supabase
-        .from('order_notifications')
-        .update({
-          status: 'processing',
-          last_attempt_at: new Date().toISOString(),
-          attempt_count: notif.attempt_count + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', notif.id);
-
-      const sendResult = await sendEmailViaResendRest(notif.recipient, notif.subject, notif.html_body);
-
-      if (sendResult.success) {
-        // Mark accepted
-        await supabase
-          .from('order_notifications')
-          .update({
-            status: 'accepted',
-            provider_message_id: sendResult.id || null,
-            last_error: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', notif.id);
-
-        // Update legacy columns on orders table
-        if (notif.notification_type.startsWith('merchant')) {
-          await supabase.from('orders').update({
-            merchant_alert_sent: true,
-            merchant_alert_status: 'sent',
-            merchant_alert_error: null
-          }).eq('id', orderId);
-        } else {
-          await supabase.from('orders').update({
-            email_receipt_sent: true,
-            email_status: 'sent',
-            resend_id: sendResult.id || null,
-            email_sent_at: new Date().toISOString(),
-            email_last_error: null
-          }).eq('id', orderId);
-        }
-
-        results.push({ id: notif.id, status: 'accepted', providerMessageId: sendResult.id });
-      } else {
-        const sanitizedErr = sanitizeErrorMessage(sendResult.error);
-        const newAttemptCount = notif.attempt_count + 1;
-        const isPermanentFailure = newAttemptCount >= (notif.max_attempts || 5);
-        const newStatus = isPermanentFailure ? 'failed' : 'retrying';
-
-        const backoffMinutes = Math.min(newAttemptCount * 5, 60);
-        const nextRetryAt = isPermanentFailure
-          ? null
-          : new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
-
-        await supabase
-          .from('order_notifications')
-          .update({
-            status: newStatus,
-            last_error: sanitizedErr,
-            next_retry_at: nextRetryAt,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', notif.id);
-
-        if (notif.notification_type.startsWith('merchant')) {
-          await supabase.from('orders').update({
-            merchant_alert_sent: false,
-            merchant_alert_status: newStatus,
-            merchant_alert_error: sanitizedErr
-          }).eq('id', orderId);
-        } else {
-          await supabase.from('orders').update({
-            email_receipt_sent: false,
-            email_status: newStatus,
-            email_last_error: sanitizedErr
-          }).eq('id', orderId);
-        }
-
-        results.push({ id: notif.id, status: newStatus, error: sanitizedErr });
-      }
+    for (const notif of claimed) {
+      results.push(await processClaimedNotification(supabase, notif));
     }
 
     return { success: true, count: results.length, results };
@@ -200,37 +233,23 @@ async function dispatchOrderNotifications(supabase, orderId) {
 }
 
 /**
- * Retries all due notifications across orders.
+ * Atomically claims & retries all due notifications across orders (including expired processing leases).
  */
 async function retryPendingNotifications(supabase, limit = 20) {
   if (!supabase) return { success: false, error: 'Missing supabase client' };
 
   try {
-    const nowIso = new Date().toISOString();
-    const { data: dueNotifications, error } = await supabase
-      .from('order_notifications')
-      .select('id, order_id')
-      .in('status', ['queued', 'retrying'])
-      .or(`next_retry_at.is.null,next_retry_at.lte.${nowIso}`)
-      .limit(limit);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    if (!dueNotifications || dueNotifications.length === 0) {
+    const claimed = await claimNotifications(supabase, null, limit);
+    if (claimed.length === 0) {
       return { success: true, processed: 0, message: 'No notifications due for retry' };
     }
 
-    const uniqueOrderIds = [...new Set(dueNotifications.map(n => n.order_id))];
     const results = [];
-
-    for (const orderId of uniqueOrderIds) {
-      const res = await dispatchOrderNotifications(supabase, orderId);
-      results.push({ orderId, ...res });
+    for (const notif of claimed) {
+      results.push(await processClaimedNotification(supabase, notif));
     }
 
-    return { success: true, ordersProcessed: uniqueOrderIds.length, details: results };
+    return { success: true, processed: results.length, details: results };
   } catch (err) {
     return { success: false, error: err.message };
   }

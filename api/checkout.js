@@ -12,7 +12,7 @@ const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { applySecureCors } = require('./_payment-validation');
+const { applySecureCors, STORE_CONFIG } = require('./_payment-validation');
 
 let stripe = null;
 if (process.env.STRIPE_SECRET_KEY) {
@@ -162,29 +162,39 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 3. Server-Side Checkout Intent Persistence in Supabase
+    // 3. Server-Side Checkout Intent Persistence in Supabase (Integer Cents Precision)
     // Stores full authoritative items, prices, and totals server-side.
-    // Completely eliminates risk of truncated JSON in Stripe metadata.
+    // Fails closed with HTTP 503 if Supabase is configured and intent cannot be persisted.
     const intentId = `ch_intent_${crypto.randomBytes(12).toString('hex')}`;
-    const subtotalDollars = verifiedLineItems.reduce((acc, item) => acc + (item.price_data.unit_amount * item.quantity / 100), 0);
-    const shippingDollars = 6.95;
-    const totalDollars = parseFloat((subtotalDollars + shippingDollars).toFixed(2));
-    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const subtotalCents = verifiedLineItems.reduce((acc, item) => acc + (item.price_data.unit_amount * item.quantity), 0);
+    const shippingCents = STORE_CONFIG.STANDARD_SHIPPING_CENTS; // 695 cents ($6.95)
+    const totalCents = subtotalCents + shippingCents;
+    const subtotalDollars = Number((subtotalCents / 100).toFixed(2));
+    const shippingDollars = Number((shippingCents / 100).toFixed(2));
+    const totalDollars = Number((totalCents / 100).toFixed(2));
+    const expiresAt = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(); // 25 hours (covers Stripe 24h TTL)
 
     if (supabase) {
-      try {
-        await supabase.from('checkout_intents').insert({
-          id: intentId,
-          items: sanitizedCartMetadata,
-          subtotal: subtotalDollars,
-          shipping_amount: shippingDollars,
-          total_amount: totalDollars,
-          currency: 'usd',
-          status: 'pending',
-          expires_at: expiresAt
+      const { error: intentErr } = await supabase.from('checkout_intents').insert({
+        id: intentId,
+        items: sanitizedCartMetadata,
+        subtotal: subtotalDollars,
+        shipping_amount: shippingDollars,
+        total_amount: totalDollars,
+        subtotal_cents: subtotalCents,
+        shipping_cents: shippingCents,
+        total_cents: totalCents,
+        currency: 'usd',
+        status: 'pending',
+        expires_at: expiresAt
+      });
+
+      if (intentErr) {
+        console.error('CRITICAL: Failed to persist checkout_intent before Stripe redirect:', intentErr.message);
+        return res.status(503).json({
+          success: false,
+          error: 'Checkout initialization temporarily unavailable. Please try again in a moment.'
         });
-      } catch (intentErr) {
-        console.warn('Failed to persist checkout_intent (continuing with session):', intentErr.message);
       }
     }
 
@@ -215,7 +225,7 @@ module.exports = async (req, res) => {
         {
           shipping_rate_data: {
             type: 'fixed_amount',
-            fixed_amount: { amount: 695, currency: 'usd' },
+            fixed_amount: { amount: shippingCents, currency: 'usd' },
             display_name: 'Standard Priority Shipping',
             delivery_estimate: {
               minimum: { unit: 'business_day', value: 2 },

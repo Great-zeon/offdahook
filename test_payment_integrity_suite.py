@@ -20,17 +20,23 @@ def record_test(test_id, category, test_type, scenario, expected, actual, passed
     if passed:
         tests_passed += 1
     status = "PASS" if passed else "FAIL"
+    # Clarify simulation vs live infrastructure honestly
+    honest_type = test_type
+    if test_type == "DATABASE INTEGRATION TEST":
+        honest_type = "SIMULATED DB LOGIC TEST"
+    elif test_type == "CONCURRENCY TEST":
+        honest_type = "SIMULATED CONCURRENCY TEST"
     test_results.append({
         "id": test_id,
         "category": category,
-        "type": test_type,
+        "type": honest_type,
         "scenario": scenario,
         "expected": expected,
         "actual": actual,
         "status": status,
         "details": details
     })
-    print(f"[{status}] [{test_type}] {test_id}: {scenario}")
+    print(f"[{status}] [{honest_type}] {test_id}: {scenario}")
 
 # ------------------------------------------------------------------------
 # Mock Salon Catalog & Database Environment for Logic Execution
@@ -838,6 +844,52 @@ record_test("TC-55", "Security", "STATIC REVIEW", "Zero wildcard CORS in all API
 # TC-56: Checkout Intent Amount, State & Session Ownership Reconciliation
 p56 = "AMOUNT_MISMATCH" in pv_js and "INTENT_SESSION_MISMATCH" in pv_js and "INVALID_INTENT_STATE" in pv_js
 record_test("TC-56", "Checkout", "STATIC REVIEW", "_payment-validation.js enforces intent ownership, cancelled/expired state rejection, and Stripe amount reconciliation", "All 3 intent guards implemented", f"Passed={p56}", p56)
+
+# 12. Phase 10 Post-Audit Regression Checks (TC-57 through TC-65)
+with open("admin.html", "r") as f:
+    admin_html = f.read()
+with open("api/resend-webhook.js", "r") as f:
+    resend_wh_js = f.read()
+with open("api/products.js", "r") as f:
+    products_js = f.read()
+with open("api/auth.js", "r") as f:
+    auth_js = f.read()
+
+# TC-57: admin.html syntax bug removed and cloud sync hooks connected
+p57 = admin_html.count("receiptModal.classList.add('active');") == 1 and "saveProducts(updated, p, 'DELETE')" in admin_html and "saveProducts(prods, targetProduct, cloudMethod)" in admin_html
+record_test("TC-57", "Admin", "STATIC REVIEW", "admin.html fixes fatal syntax error and syncs stock, create, edit, and delete to /api/products", "1 receiptModal show call + cloud sync hooks", f"Passed={p57}", p57)
+
+# TC-58: schema.sql FOR UPDATE lock on webhook_events and claim_pending_notifications SKIP LOCKED
+p58 = "FROM webhook_events\n    WHERE id = p_event_id\n    FOR UPDATE;" in schema_sql and "FOR UPDATE SKIP LOCKED" in schema_sql and "Webhook event is concurrently in flight; retry required." in schema_sql
+record_test("TC-58", "Database", "STATIC REVIEW", "schema.sql uses FOR UPDATE on webhook_events, SKIP LOCKED outbox claim, and 503 race handling", "Locking & race protection in SQL", f"Passed={p58}", p58)
+
+# TC-59: checkout.js uses integer cents arithmetic and fails closed on DB intent insert error
+p59 = "subtotalCents" in checkout_js and "totalCents" in checkout_js and "res.status(503)" in checkout_js
+record_test("TC-59", "Checkout", "STATIC REVIEW", "checkout.js calculates amounts in integer cents and fails closed on checkout_intents persistence failure", "Integer cents + 503 guard", f"Passed={p59}", p59)
+
+# TC-60: resend-webhook.js verifies Svix HMAC signatures and updates delivery states
+p60 = "verifyResendSignature" in resend_wh_js and "email.delivered" in resend_wh_js and "email.bounced" in resend_wh_js
+record_test("TC-60", "Notification", "STATIC REVIEW", "resend-webhook.js enforces Svix signature verification and handles delivered/bounced events", "Signature verification + event switch", f"Passed={p60}", p60)
+
+# TC-61: orders.js escapes receipt HTML and validates allowed fulfillment statuses
+p61 = "escapeHtml" in orders_js and "ALLOWED_FULFILLMENT_STATUSES" in orders_js and "sendEmailViaResendRest" in orders_js
+record_test("TC-61", "Admin", "STATIC REVIEW", "orders.js escapes HTML receipts, enforces status allowlist, and uses shared timeout email sender", "Escaping + allowlist + shared sender", f"Passed={p61}", p61)
+
+# TC-62: products.js allows stock=0 creation without 0||10 fallback bug
+p62 = "stock !== undefined && stock !== null && !isNaN(parseInt(stock, 10))" in products_js
+record_test("TC-62", "Admin", "STATIC REVIEW", "products.js allows stock=0 product creation safely", "Explicit zero-safe parsing", f"Passed={p62}", p62)
+
+# TC-63: auth.js checks typeof pin === 'string' before trim()
+p63 = "typeof pin !== 'string'" in auth_js
+record_test("TC-63", "Security", "STATIC REVIEW", "auth.js rejects non-string pin payloads cleanly with HTTP 400", "typeof guard present", f"Passed={p63}", p63)
+
+# TC-64: _notification-outbox.js enforces atomic lease claiming and Resend Idempotency-Key
+p64 = "claimNotifications" in outbox_js and "Idempotency-Key" in outbox_js
+record_test("TC-64", "Notification", "STATIC REVIEW", "_notification-outbox.js uses atomic lease claiming and Resend Idempotency-Key header", "Atomic claim + idempotency header", f"Passed={p64}", p64)
+
+# TC-65: _payment-validation.js prevents completed intent replay across different sessions
+p65 = "INTENT_ALREADY_USED" in pv_js and "expectedAdjustedCents" in pv_js
+record_test("TC-65", "Checkout", "STATIC REVIEW", "_payment-validation.js rejects intent replay and reconciles integer total cents with tax/discount", "Replay guard + exact cents match", f"Passed={p65}", p65)
 
 print("=" * 70)
 print(f"AUTOMATED TEST RESULTS: {tests_passed} PASSED / {tests_run} EXECUTED")

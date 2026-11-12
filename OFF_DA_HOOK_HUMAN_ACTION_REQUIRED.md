@@ -1,14 +1,13 @@
 # Off Da Hook Salon Suites — Human Action Register
-**Date**: November 11, 2026  
-**Auditor**: Zero-Trust Security & Systems Architect  
-**Objective**: Non-Delegable Staging Verification & Merchant Actions Prior to Production Migration  
+**Date**: November 12, 2026  
+**Objective**: Non-Delegable Staging Verification & Merchant Actions Prior to Production Rollout  
 **Status**: PENDING HUMAN EXECUTION  
 
 ---
 
 ## 1. Zero-Trust Policy
 
-Under zero-trust engineering rules, **do NOT run the migration on the live production Supabase database first**. Verify all steps on an isolated staging Supabase project and Stripe Test Mode first, confirm every end-to-end record, and only then schedule production rollout.
+**Do NOT run the SQL migration on the production Supabase database first.** Complete every staging gate below on an isolated staging Supabase project + Vercel Preview + Stripe Test Mode before preparing production deployment.
 
 ---
 
@@ -16,40 +15,36 @@ Under zero-trust engineering rules, **do NOT run the migration on the live produ
 
 | ID | Category | Required Action | Location | Status |
 | :---: | :--- | :--- | :--- | :---: |
-| **ACT-01** | **Staging Database Migration** | Run [`OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql) in an isolated **Staging Supabase SQL Editor** first (reconcile any duplicate `stripe_session_id` alerts manually if raised). | Staging Supabase SQL Editor | **PENDING** |
-| **ACT-02** | **Vercel Environment Variables** | Configure `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `ADMIN_PIN`, `STOREFRONT_URL`, and `CRON_SECRET` in Vercel Preview/Staging environment. | [Vercel Project Settings](https://vercel.com/) | **PENDING** |
-| **ACT-03** | **Stripe Test-Mode Webhook** | Register `https://<staging-domain>/api/webhook` in Stripe Dashboard (Test Mode) for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.async_payment_failed`. | [Stripe Dashboard > Webhooks](https://dashboard.stripe.com/) | **PENDING** |
-| **ACT-04** | **Resend Domain Verification** | Verify `offdahookhairsalon.com` SPF/DKIM DNS records in Resend so `@offdahookhairsalon.com` outbound emails are accepted by recipient MTAs. | [Resend Dashboard](https://resend.com/) & Domain DNS | **PENDING** |
-| **ACT-05** | **Staging End-to-End Test Purchase** | Complete a full Stripe Test Mode purchase (`4242...`) on staging and verify DB rows (`orders`, `products`, `checkout_intents`, `webhook_events`, `order_notifications`). | Staging Storefront & Supabase Tables | **PENDING** |
+| **ACT-01** | **Staging Database Migration** | Execute [`OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql) in an isolated **Staging Supabase SQL Editor** (twice to verify repeatability). | Staging Supabase SQL Editor | **PENDING** |
+| **ACT-02** | **Vercel Staging Environment** | Configure `STOREFRONT_URL`, `STRIPE_SECRET_KEY` (`sk_test_...`), `STRIPE_WEBHOOK_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `MERCHANT_ALERT_EMAIL`, `ADMIN_PIN`, and `CRON_SECRET`. | Vercel Project Settings (Preview) | **PENDING** |
+| **ACT-03** | **Stripe Test-Mode Webhook** | Register `https://<staging-domain>/api/webhook` in Stripe Dashboard (Test Mode) for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`. | Stripe Dashboard > Webhooks | **PENDING** |
+| **ACT-04** | **Resend Domain & Webhook** | Verify `offdahookhairsalon.com` SPF/DKIM DNS records and register `https://<staging-domain>/api/resend-webhook` for `email.delivered`, `email.bounced`, `email.complained`, `email.delivery_delayed`. | Resend Dashboard & DNS | **PENDING** |
+| **ACT-05** | **Staging E2E & Admin Verification** | Complete Stripe Test-Mode checkout (`4242 4242 4242 4242`) + verify Supabase (`orders`, `products`, `checkout_intents`, `webhook_events`, `order_notifications`) + verify `admin.html` inventory CRUD & order actions. | Staging URL & Supabase | **PENDING** |
 
 ---
 
-## 3. Step-by-Step Staging Verification Instructions
+## 3. Step-by-Step Staging Execution Guide
 
-### Step 1: Staging Schema Execution (ACT-01)
-1. Provision or select your **Staging** Supabase project.
-2. Open SQL Editor and paste [`OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql).
-3. Click **Run**.
-   - Note: If unresolved duplicate `stripe_session_id` rows exist, the script will halt cleanly with `MIGRATION BLOCKED` and list affected order IDs without altering historical Stripe identifiers.
-4. Confirm `products`, `orders`, `webhook_events`, `checkout_intents`, `order_notifications`, `process_paid_order_atomic`, and `record_webhook_failure` exist.
+### Step 1: Isolated Staging Schema Execution (ACT-01)
+1. Provision a disposable/staging Supabase project.
+2. Open the SQL Editor, paste [`OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql`](file:///Users/macos/Downloads/offdahook/OFF_DA_HOOK_CORRECTED_DATABASE_SCHEMA.sql), and click **Run**.
+3. Run the script a **second time** to verify idempotency and repeatability.
+4. Confirm existence of tables (`products`, `orders`, `webhook_events`, `checkout_intents`, `order_notifications`) and functions (`process_paid_order_atomic`, `record_webhook_failure`, `claim_pending_notifications`, `deduct_product_stock_atomic`).
 
-### Step 2: Configure Staging Secrets & Webhook (ACT-02 & ACT-03)
-1. In Stripe Dashboard (**Test Mode** > **Developers > Webhooks**), add your staging `/api/webhook` URL.
-2. Subscribe to:
-   - `checkout.session.completed`
-   - `checkout.session.async_payment_succeeded`
-   - `checkout.session.async_payment_failed`
-3. Set `STOREFRONT_URL` in Vercel (e.g. `https://offdahook.vercel.app`) along with `ADMIN_PIN`, `CRON_SECRET`, `STRIPE_WEBHOOK_SECRET`, and `RESEND_API_KEY`.
-4. Redeploy Vercel preview/staging build.
+### Step 2: Staging Environment & Webhooks (ACT-02, ACT-03, ACT-04)
+1. Set all environment variables documented in [`.env.example`](file:///Users/macos/Downloads/offdahook/.env.example) in Vercel Preview scope.
+2. Add Stripe Test-Mode webhook pointing to `https://<staging-domain>/api/webhook` and store `STRIPE_WEBHOOK_SECRET`.
+3. Add Resend webhook pointing to `https://<staging-domain>/api/resend-webhook` (`email.delivered`, `email.bounced`, `email.complained`, `email.delivery_delayed`) and store `RESEND_WEBHOOK_SECRET`.
+4. Deploy/redeploy Vercel Preview.
 
-### Step 3: Execute End-to-End Test-Mode Purchase (ACT-05)
-1. Open staging `/shop.html`, add products to cart, and click **Proceed to Secure Checkout**.
-2. Verify Stripe Checkout redirects to Stripe hosted page and complete payment using Stripe test card `4242 4242 4242 4242`.
-3. Verify return redirect lands cleanly on `/shop.html?order=success&session_id=...` and triggers `/api/verify-session`.
-4. Confirm in Staging Supabase:
-   - `checkout_intents` row transitions from `pending` to `completed`.
-   - `orders` contains 1 row with genuine server-generated ID (`ODH-...`) and matching `stripe_session_id`.
-   - `products.stock` decremented by exact purchased quantity.
-   - `webhook_events` event marked `completed`.
-   - `order_notifications` outbox contains queued/accepted records for both `merchant_order_alert` and `customer_order_receipt`.
-5. Only after all 5 staging verifications pass should ACT-01..ACT-04 be repeated for Production.
+### Step 3: Live Test-Mode Checkout & Admin Verification (ACT-05)
+1. Navigate to `https://<staging-domain>/shop.html`, add an item, and click **Proceed to Secure Checkout**.
+2. Pay with Stripe test card `4242 4242 4242 4242`.
+3. Confirm redirect to `/shop.html?order=success&session_id=...` shows persisted Order ID (`ODH-...`) and purchased item list.
+4. Verify in Staging Supabase:
+   - `checkout_intents`: row `status = 'completed'`, linked `stripe_session_id`, exact integer `total_cents`.
+   - `orders`: 1 row with genuine ID, `fulfillment_status = 'Pending'`, exact amount.
+   - `products`: `stock` decremented by exact purchased quantity.
+   - `webhook_events`: event marked `completed`.
+   - `order_notifications`: `merchant_order_alert` & `customer_order_receipt` reach `accepted` -> `delivered`.
+5. Log in to `https://<staging-domain>/admin.html` with `ADMIN_PIN`, verify order visibility, tracking update persistence, and product stock adjustment persistence across page reloads.

@@ -75,3 +75,4 @@ Under zero-trust engineering protocols:
 | Real PostgreSQL Server Migration Dry-Run (Clean / Non-Unique / Duplicate DBs) | Awaits Staging PostgreSQL Instance | **BLOCKED** | Staging Supabase URL / Postgres URI |
 | Multi-Worker HTTP Concurrency Test Against Live PostgreSQL Locks | Awaits Staging Environment | **BLOCKED** | Deployed Staging API + Postgres |
 | Live Stripe Test-Mode Checkout, Webhook Delivery & Resend Email Trace | Awaits Human Credentials & Staging Deploy | **BLOCKED** | Vercel staging env + `STRIPE_WEBHOOK_SECRET` + `RESEND_API_KEY` |
+

@@ -79,7 +79,7 @@ module.exports = async (req, res) => {
         return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid' });
       }
 
-      const { id, stock, price, title, category, description } = req.body;
+      const { id, stock, price, title, category, description, image, is_active, track_inventory } = req.body || {};
       if (!id) return res.status(400).json({ success: false, error: 'Missing product ID' });
 
       if (!supabase) {
@@ -87,11 +87,22 @@ module.exports = async (req, res) => {
       }
 
       const updates = { updated_at: new Date().toISOString() };
-      if (typeof stock !== 'undefined') updates.stock = Math.max(0, parseInt(stock, 10));
-      if (typeof price !== 'undefined') updates.price = Math.max(0, parseFloat(price));
-      if (title) updates.title = title;
-      if (category) updates.category = category;
-      if (description) updates.description = description;
+      if (typeof stock !== 'undefined') {
+        const parsedStock = parseInt(stock, 10);
+        if (isNaN(parsedStock) || parsedStock < 0) return res.status(400).json({ success: false, error: 'Stock must be a non-negative integer' });
+        updates.stock = parsedStock;
+      }
+      if (typeof price !== 'undefined') {
+        const parsedPrice = parseFloat(price);
+        if (isNaN(parsedPrice) || parsedPrice < 0) return res.status(400).json({ success: false, error: 'Price must be non-negative' });
+        updates.price = Number(parsedPrice.toFixed(2));
+      }
+      if (title) updates.title = String(title).trim();
+      if (typeof category !== 'undefined') updates.category = category;
+      if (typeof description !== 'undefined') updates.description = description;
+      if (typeof image !== 'undefined') updates.image = image;
+      if (typeof is_active === 'boolean') updates.is_active = is_active;
+      if (typeof track_inventory === 'boolean') updates.track_inventory = track_inventory;
 
       const { data, error } = await supabase
         .from('products')
@@ -100,6 +111,7 @@ module.exports = async (req, res) => {
         .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) return res.status(404).json({ success: false, error: 'Product not found' });
       return res.status(200).json({ success: true, product: data[0] });
     }
 
@@ -109,12 +121,17 @@ module.exports = async (req, res) => {
         return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid' });
       }
 
-      const { id, title, price, stock, category, volume, image, description } = req.body;
-      if (!title || typeof price === 'undefined') {
-        return res.status(400).json({ success: false, error: 'Title and price are required' });
+      const { id, title, price, stock, category, volume, image, description, track_inventory } = req.body || {};
+      const parsedPrice = parseFloat(price);
+      if (!title || isNaN(parsedPrice) || parsedPrice < 0) {
+        return res.status(400).json({ success: false, error: 'Valid title and non-negative price are required' });
       }
 
-      const prodId = id || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const parsedStock = stock !== undefined && stock !== null && !isNaN(parseInt(stock, 10))
+        ? Math.max(0, parseInt(stock, 10))
+        : 10;
+
+      const prodId = id || String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
       if (!supabase) {
         return res.status(503).json({ success: false, error: 'Database service unavailable' });
@@ -124,9 +141,11 @@ module.exports = async (req, res) => {
         .from('products')
         .insert([{
           id: prodId,
-          title,
-          price: parseFloat(price),
-          stock: Math.max(0, parseInt(stock, 10) || 10),
+          title: String(title).trim(),
+          price: Number(parsedPrice.toFixed(2)),
+          stock: parsedStock,
+          track_inventory: typeof track_inventory === 'boolean' ? track_inventory : true,
+          is_active: true,
           category: category || 'general',
           volume: volume || 'Standard Size',
           image: image || 'assets/shop/xxxtra-strength-regrowth-serum-enhanced.jpg',
@@ -144,14 +163,14 @@ module.exports = async (req, res) => {
         return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid' });
       }
 
-      const { id } = req.body || req.query;
+      const id = req.body?.id || req.query?.id;
       if (!id) return res.status(400).json({ success: false, error: 'Missing product ID' });
 
       if (!supabase) {
         return res.status(503).json({ success: false, error: 'Database service unavailable' });
       }
 
-      const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
+      const { error } = await supabase.from('products').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', id);
       if (error) throw error;
       return res.status(200).json({ success: true, message: 'Product archived successfully' });
     }

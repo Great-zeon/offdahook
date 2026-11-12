@@ -13,6 +13,7 @@ const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { applySecureCors, validateStripeSession, maskEmail } = require('./_payment-validation');
+const { enrichOrderNotifications, dispatchOrderNotifications } = require('./_notification-outbox');
 
 let stripe = null;
 if (process.env.STRIPE_SECRET_KEY) {
@@ -74,18 +75,23 @@ module.exports = async (req, res) => {
     // 5. Authoritative Checkout Intent & Shared Strict Payment Validation
     let authoritativeIntent = null;
     if (session.metadata?.checkout_intent_id && supabase) {
-      try {
-        const { data: intent } = await supabase
-          .from('checkout_intents')
-          .select('*')
-          .eq('id', session.metadata.checkout_intent_id)
-          .maybeSingle();
+      const { data: intent, error: intentErr } = await supabase
+        .from('checkout_intents')
+        .select('*')
+        .eq('id', session.metadata.checkout_intent_id)
+        .maybeSingle();
 
-        if (intent) {
-          authoritativeIntent = intent;
-        }
-      } catch (intentErr) {
-        console.warn('Failed to fetch checkout_intent in verify-session:', intentErr.message);
+      if (intentErr) {
+        console.error('Database error retrieving checkout_intent in verify-session:', intentErr.message);
+        return res.status(503).json({
+          success: false,
+          verified: false,
+          error: 'Temporary system verification delay. Please refresh in a moment.'
+        });
+      }
+
+      if (intent) {
+        authoritativeIntent = intent;
       }
     }
 
@@ -121,20 +127,21 @@ module.exports = async (req, res) => {
         orderRecord = existingOrder;
       } else {
         // 7. Self-Healing Atomic Reconciliation
-        // Generates cryptographically collision-resistant order ID
         const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const secureSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
         const newOrderId = `ODH-${datePrefix}-${secureSuffix}`;
         const shipping = session.shipping_details?.address || session.customer_details?.address || {};
+        const phone = session.customer_details?.phone || '';
 
         try {
           const { data: rpcData, error: rpcError } = await supabase.rpc('process_paid_order_atomic', {
             p_order: {
               id: newOrderId,
               stripe_session_id: session.id,
+              checkout_intent_id: session.metadata?.checkout_intent_id || null,
               customer_name: customerName,
               customer_email: customerEmail,
-              customer_phone: session.customer_details?.phone || '',
+              customer_phone: phone,
               shipping_address: shipping,
               subtotal: subtotalAmount,
               total_amount: totalAmount,
@@ -146,14 +153,24 @@ module.exports = async (req, res) => {
           });
 
           if (!rpcError && rpcData?.success) {
+            const resolvedId = rpcData.order_id || newOrderId;
             orderRecord = {
-              id: rpcData.order_id || newOrderId,
-              fulfillment_status: 'Pending'
+              id: resolvedId,
+              fulfillment_status: 'Pending',
+              items: items
             };
-            console.log(`Self-healing reconciliation successfully created order ${orderRecord.id} for session ${sessionId}`);
+            await enrichOrderNotifications(supabase, {
+              orderId: resolvedId,
+              customerName,
+              customerEmail,
+              customerPhone: phone,
+              shippingAddress: shipping,
+              items,
+              totalAmount,
+              isShortfall: false
+            });
+            dispatchOrderNotifications(supabase, resolvedId).catch(() => {});
           } else if (rpcData?.duplicate) {
-            // Webhook arrived concurrently while verify-session was executing
-            console.log(`Concurrent order detected for session ${sessionId}. Retrieving authoritative order.`);
             const { data: dupOrder } = await supabase
               .from('orders')
               .select('id, fulfillment_status, created_at, items')
@@ -163,11 +180,24 @@ module.exports = async (req, res) => {
               orderRecord = dupOrder;
             }
           } else if (rpcData?.action_required) {
-            // Order safely recorded as Backordered_Action_Required due to stock shortfall
+            const resolvedId = rpcData.order_id || newOrderId;
             orderRecord = {
-              id: rpcData.order_id || newOrderId,
-              fulfillment_status: 'Backordered_Action_Required'
+              id: resolvedId,
+              fulfillment_status: 'Backordered_Action_Required',
+              items: items
             };
+            await enrichOrderNotifications(supabase, {
+              orderId: resolvedId,
+              customerName,
+              customerEmail,
+              customerPhone: phone,
+              shippingAddress: shipping,
+              items,
+              totalAmount,
+              isShortfall: true,
+              shortfallDetails: rpcData.shortfall_details
+            });
+            dispatchOrderNotifications(supabase, resolvedId).catch(() => {});
           }
         } catch (rpcEx) {
           console.warn('Reconciliation RPC execution failed:', rpcEx.message);
@@ -176,8 +206,13 @@ module.exports = async (req, res) => {
     }
 
     // 8. Truthful Response Enforcement (Zero Synthetic Order IDs)
-    // If order was successfully found or persisted:
     if (orderRecord && orderRecord.id) {
+      const displayItems = (Array.isArray(orderRecord.items) ? orderRecord.items : items).map(i => ({
+        title: i.title || 'Crown Formula',
+        qty: i.qty || i.quantity || 1,
+        price: Number(i.price || 0)
+      }));
+
       return res.status(200).json({
         success: true,
         verified: true,
@@ -187,7 +222,8 @@ module.exports = async (req, res) => {
           customerName: customerName,
           maskedEmail: maskEmail(customerEmail),
           totalAmount: totalAmount,
-          itemCount: items.length,
+          itemCount: displayItems.length,
+          items: displayItems,
           fulfillmentStatus: orderRecord.fulfillment_status || 'Pending'
         }
       });

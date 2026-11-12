@@ -119,18 +119,19 @@ const handler = async (req, res) => {
       // Check for authoritative server-side checkout intent
       let authoritativeIntent = null;
       if (session.metadata?.checkout_intent_id) {
-        try {
-          const { data: intent } = await supabase
-            .from('checkout_intents')
-            .select('*')
-            .eq('id', session.metadata.checkout_intent_id)
-            .maybeSingle();
+        const { data: intent, error: intentErr } = await supabase
+          .from('checkout_intents')
+          .select('*')
+          .eq('id', session.metadata.checkout_intent_id)
+          .maybeSingle();
 
-          if (intent) {
-            authoritativeIntent = intent;
-          }
-        } catch (intentErr) {
-          console.warn('Failed to fetch checkout_intent:', intentErr.message);
+        if (intentErr) {
+          console.error('Transient DB failure retrieving checkout_intent:', intentErr.message);
+          return res.status(500).json({ error: 'Database error fetching checkout intent. Retry scheduled.' });
+        }
+
+        if (intent) {
+          authoritativeIntent = intent;
         }
       }
 
@@ -181,6 +182,7 @@ const handler = async (req, res) => {
           p_order: {
             id: orderId,
             stripe_session_id: session.id,
+            checkout_intent_id: session.metadata?.checkout_intent_id || null,
             customer_name: customerName,
             customer_email: customerEmail,
             customer_phone: customerPhone,
